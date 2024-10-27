@@ -1,0 +1,6 @@
+FROM ubuntu 
+RUN apt-get update && apt-get install -y tcpdump 
+run mkdir /data
+VOLUME  [ "/data" ]
+CMD [ "-C", "1000", "-W", "100", "-v", "-w", "/data/dump" ]
+ENTRYPOINT [ "tcpdump" ]
