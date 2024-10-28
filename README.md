@@ -109,6 +109,9 @@ options:
                         The password to use for SIEM services
 ```
 
+### SETC Demo Video
+[![SETC Demo Video](https://img.youtube.com/vi/v09yiL_8USM/0.jpg)](https://www.youtube.com/watch?v=v09yiL_8USM)
+
 ## Roadmap
 SETC is currently considered an Alpha version of the project. While the alpha version is fully functional, many corners were cut to develop a working prototype rapidly. Completing the following roadmap features will make the project more usable, modular, and fit for community contribution.
 
