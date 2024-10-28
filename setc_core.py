@@ -3,12 +3,6 @@ import json
 import time
 import argparse
 
-"""
-Notes:
-    tail pcap file with
-    tail -f -c +0 dump.pcap00|/Applications/Wireshark.app/Contents/MacOS/tshark -r -
-"""
-
 parser = argparse.ArgumentParser()
 parser.add_argument("config", type=str, 
                     help="The SETC configuration file to use")
