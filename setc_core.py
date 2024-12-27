@@ -91,10 +91,20 @@ cmd = "./bin/splunk add index zeek -auth 'admin:{}'".format(args.password)
 dk_splunk.exec_run(cmd = cmd , user="splunk", tty=True, detach=False)
 cmd = "./bin/splunk add index cim -auth 'admin:{}'".format(args.password)
 dk_splunk.exec_run(cmd = cmd , user="splunk", tty=True, detach=False)
+cmd = "./bin/splunk add index ecs -auth 'admin:{}'".format(args.password)
+dk_splunk.exec_run(cmd = cmd , user="splunk", tty=True, detach=False)
+cmd = "./bin/splunk add index ocsf -auth 'admin:{}'".format(args.password)
+dk_splunk.exec_run(cmd = cmd , user="splunk", tty=True, detach=False)
 cmd = """./bin/splunk add monitor "/data/zeek/*/*" -index zeek -auth admin:{} -sourcetype _json"""
 cmd = cmd.format(args.password)
 dk_splunk.exec_run(cmd = cmd , user="splunk", tty=True, detach=False)
-cmd = """./bin/splunk add monitor "/data/logs/*" -index cim -auth admin:{} -sourcetype _json"""
+cmd = """./bin/splunk add monitor "/data/logs/cim*" -index cim -auth admin:{} -sourcetype _json"""
+cmd = cmd.format(args.password)
+dk_splunk.exec_run(cmd = cmd , user="splunk", tty=True, detach=False)
+cmd = """./bin/splunk add monitor "/data/logs/ocsf*" -index ocsf -auth admin:{} -sourcetype _json"""
+cmd = cmd.format(args.password)
+dk_splunk.exec_run(cmd = cmd , user="splunk", tty=True, detach=False)
+cmd = """./bin/splunk add monitor "/data/logs/ecs*" -index ecs -auth admin:{} -sourcetype _json"""
 cmd = cmd.format(args.password)
 dk_splunk.exec_run(cmd = cmd , user="splunk", tty=True, detach=False)
 
