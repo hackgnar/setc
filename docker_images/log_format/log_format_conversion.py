@@ -155,6 +155,74 @@ cim_network_from_zeek = {
     "transport": lambda x: x.get("proto", "-")
 }
 
+#https://www.elastic.co/guide/en/ecs/current/ecs-network.html
+#https://www.elastic.co/guide/en/ecs/current/ecs-source.html
+#https://www.elastic.co/guide/en/ecs/current/ecs-destination.html
+ecs_network_from_zeek = {
+    "@timestamp": lambda x: x.get("ts", time.time()),
+    "network.application": lambda x: x.get("service", "-"), #Required
+    "network.bytes": lambda x: x.get("orig_bytes", 0)+x.get("resp_bytes", 0),
+    "source.bytes": lambda x: x.get("orig_bytes", 0),
+    "destination.bytes": lambda x: x.get("resp_bytes", 0),
+    "destination.ip": lambda x: x.get("id.resp_h", 0),
+    "destination.port": lambda x: x.get("id.resp_p", 0),
+    "network.packets": lambda x: x.get("orig_pkts", 0)+x.get("resp_pkts", 0),
+    "source.packets": lambda x: x.get("orig_pkts", 0),
+    "destination.packets": lambda x: x.get("resp_pkts", 0),
+    "source.ip": lambda x: x.get("id.orig_h", 0),
+    "destination.ip": lambda x: x.get("id.orig_p", 0),
+    "network.protocol": lambda x: x.get("proto", "-")
+}
+
+#https://schema.ocsf.io/1.3.0/classes/network_activity?extensions=
+#interestingly there is now packets, bytes, protocol, direction, etc????
+ocsf_network_from_zeek = {
+  "time": lambda x: x.get("ts", time.time()), #Required
+  "category_uid": lambda x: "4", #Required
+  "category_name": lambda x: "Network Activity",
+  "activity_id": lambda x: "6", #Required
+  "type_uid": lambda x: "400106", #Required
+  "type_name": lambda x: "Network Activity: Traffic",
+  "class_uid": lambda x: "4001", #Required
+  "class_name": lambda x: "Network Activity",
+  "activity_name": lambda x: "Traffic",
+  "severity_id": lambda x: "1", #Required
+  "severity": lambda x: "Informational",
+  "metadata": { #Required
+    "version": lambda x: "1.3.0", #Required
+    "product": { #Required
+      "vendor_name": lambda x: "Unknown" #Required
+    }
+  },
+  "dst_endpoint": { #Required
+    "port": lambda x: x.get("id.resp_p", 0),
+    "ip": lambda x: x.get("id.resp_h", 0)
+  },
+  "src_endpoint": { #Recomended
+    "port": lambda x: x.get("id.orig_p", 0),
+    "ip": lambda x: x.get("id.orig_h", 0)
+  }
+}
+
+def zeek_to_network_ecs(log):
+    ecs_log = {}
+    for field_name, mapping in ecs_network_from_zeek.items():
+        ecs_value = mapping(log)
+        if ecs_value != None:
+            ecs_log[field_name] = ecs_value
+    return ecs_log
+
+def zeek_to_network_ocsf(log, schema=ocsf_network_from_zeek):
+    ocsf_log = {}
+    for field_name, mapping in schema.items():
+        if type(mapping) == dict:
+            ocsf_value = zeek_to_network_ocsf(log, schema=mapping)
+        else:
+            ocsf_value = mapping(log)
+        if ocsf_value != None:
+            ocsf_log[field_name] = ocsf_value
+    return ocsf_log
+
 def zeek_to_network_cim(log):
     cim_log = {}
     for field_name, mapping in cim_network_from_zeek.items():
@@ -217,8 +285,8 @@ if __name__ == "__main__":
 
     # Network
     cim_logs = []
-    #ocsf_logs = []
-    #ecs_logs = []
+    ocsf_logs = []
+    ecs_logs = []
     net_files = find_all("conn.log", base_dir)
     for logfile in net_files:
         zeek_json = ""
@@ -227,17 +295,17 @@ if __name__ == "__main__":
             zeek_json = json.loads(line)
             cim_log = zeek_to_network_cim(zeek_json)
             cim_logs.append(cim_log)
-            #ecs_log = zeek_to_ecs(zeek_json)
-            #ecs_logs.append(ecs_log)
-            #ocsf_log = zeek_to_ocsf(zeek_json)
-            #ocsf_logs.append(ocsf_log)
+            ecs_log = zeek_to_network_ecs(zeek_json)
+            ecs_logs.append(ecs_log)
+            ocsf_log = zeek_to_network_ocsf(zeek_json)
+            ocsf_logs.append(ocsf_log)
         r.close()
     w = open(os.path.join(output_dir, "cim_network.log"), 'w')
     json.dump(cim_logs, w)
     w.close()
-    #w = open(os.path.join(output_dir, "ecs_network.log"), 'w')
-    #json.dump(ecs_logs, w)
-    #w.close()
-    #w = open(os.path.join(output_dir, "ocsf_network.log"), 'w')
-    #json.dump(ocsf_logs, w)
-    #w.close()
+    w = open(os.path.join(output_dir, "ecs_network.log"), 'w')
+    json.dump(ecs_logs, w)
+    w.close()
+    w = open(os.path.join(output_dir, "ocsf_network.log"), 'w')
+    json.dump(ocsf_logs, w)
+    w.close()
