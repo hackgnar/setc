@@ -131,7 +131,7 @@ for system_config in config:
     
     net_tcpdump = "container:%s" % (target_name)
     tcpdump_name = "tcpdump_" + system_config["name"]
-    cmd = '-U -v -w /data/pcap/%s.pcap' % (system_config["name"])
+    cmd = '-U -v -w /data/%s/pcap/%s.pcap' % (system_config["name"], system_config["name"])
     dk_tcpdump = client.containers.run("tcpdump", command=cmd, detach=True, 
                                        name=tcpdump_name, privileged=True,
                                        network=net_tcpdump,
