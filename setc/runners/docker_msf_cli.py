@@ -16,6 +16,7 @@ class DockerMsfCli:
         self.name=name
         self.target_image=target_image
         self.msf_exploit=msf_exploit
+        self.target_logs=None
         
     def network_setup(self):
         net = None
@@ -36,6 +37,7 @@ class DockerMsfCli:
         return vol
 
     def target_setup(self):
+        print("[*] Starting vulnerable target %s" % self.name)
         #tcpdump setup should happen automaticly after target setup
         dk_target = self.client.containers.run(self.target_image,
                                   detach=True, name=self.name,
@@ -61,6 +63,7 @@ class DockerMsfCli:
         self.tcpdump.remove()
 
     def attack_setup(self):
+        print("[*] Starting attack system for %s" % self.name)
         dk_attack = self.client.containers.run("metasploitframework/metasploit-framework:6.2.33",
                                  detach=True, name="%s-attack" % self.name,
                                  network=self.network, tty=True)
@@ -92,27 +95,47 @@ class DockerMsfCli:
             set ExitOnSession false; \
             exploit"""
         #cant remember why the second arg is a blank string
+        print("[*] Running exploit for %s" % self.name, end="", flush=True)
         args = args % (self.msf_exploit, "", self.name, "%s-attack" % self.name)
         result = self.attack.exec_run(cmd=[cmd, flag, args], tty=True, detach=True)
 
     def exploit_success(self):
         #create check to see if exploit happened.
-        #if we know its an http exploit, we can check for http.log on zeek
-        #if we are running MSF RPC, we can check for an open session
+        #by default it checks for established connections on 4444
+        #todo: create check customization for other MSF session ports
         
-        #temp solution
-        time.sleep(60)
-        return True
+        cmd = "netstat |grep 4444 |grep ESTABLISHED"
+        result = self.attack.exec_run(cmd=cmd, tty=True)
+        cmd_result = str(result.output)
+        print('.', end="", flush=True)
+        for line in cmd_result.splitlines():
+            if "4444" in str(line) and "ESTABLISHED" in str(line):
+                print("\n[*] Exploit of %s success" % self.name)
+                return True
+        return False
 
-    def exploit_until_success(self, delay=3, tries=30):
+    def exploit_until_success(self, status_delay=3, status_checks=10, tries=3):
         for i in range(tries):
             self.exploit()
-            if self.exploit_success():
-                break
-            time.sleep(delay)
-        return self.exploit_success()
+            for i in range (status_checks):
+                if self.exploit_success():
+                    return True
+                time.sleep(status_delay)
+            print("\n[!] Exploit of %s failed or status unknown" % self.name)
+        return False
     
     def ready_to_exploit(self):
+        if self.target_logs == None:
+            print("[*] Checking if target %s is setup" % self.name, end="",
+                  flush=True)
+        else:
+            print('.', end="", flush=True)
         #temp solution
-        time.sleep(90)
-        return True
+        logs = self.target.logs()
+        if self.target_logs == logs:
+            print("\n[*] Target %s is ready for exploit" % self.name)
+            return True
+        else:
+            self.target_logs = logs
+            time.sleep(5)
+        return False
