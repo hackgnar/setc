@@ -8,37 +8,37 @@ from modules.splunk import SplunkModule
 
 parser = argparse.ArgumentParser()
 parser.add_argument("config", type=str, 
-                    help="The SETC configuration file to use")
+                    help="The SETC configuration file to use. Example configuration files are provided in the projects sample_configuration directory.")
 parser.add_argument("-p", "--password", 
-                    help="The password to use for SIEM services",
+                    help="The password to use for SIEM services. If not provided, a default password of password1234 will be used",
                     default="password1234")
 #arg for vol name
 parser.add_argument("--volume", 
-                    help="The docker log volume name",
+                    help="The Docker volume to use for storing and manulpulating SETC log files. If not provided, the volume set_logs will be used",
                     default="set_logs")
 #arg for net name
 parser.add_argument("--network", 
-                    help="The docker network name",
+                    help="The Docker network to be used for container network connections. If not provided, the network set_framework_net will be used.",
                     default="set_framework_net")
 #arg to spin up splunk
 parser.add_argument("--splunk",
-                    help="create a Splunk instance with SETC logs",
+                    help="Create a Splunk instance and populate it with SETC logs. The Splunk instance will remain up by default after the completion of a SETC run. The instance must be cleaned up manually.",
                     action='store_true')
 #arg to blow out volumes before
 parser.add_argument("--cleanup_network",
-                    help="Delete the SETC docker network before running",
+                    help="Delete the SETC docker network before running.",
                     action='store_true')
 #arg to blow out networks before
 parser.add_argument("--cleanup_volume",
-                    help="Delete the SETC docker log volume before running",
+                    help="Delete the SETC docker log volume before running.",
                     action='store_true')
 #verbose argument
 parser.add_argument("-v", "--verbose",
-                    help="Enable SETC debug logging",
+                    help="Enable SETC debug logging.",
                     action='store_true')
 
 parser.add_argument("--zeek",
-                    help="SETC parses pcap logs with zeek by default. Use this flag to DISABLE zeek",
+                    help="SETC parses pcap logs with zeek by default. Use this flag to DISABLE zeek.",
                     action='store_false')
 args = parser.parse_args()
 
