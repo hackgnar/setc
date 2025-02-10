@@ -125,6 +125,7 @@ options:
 
 ### SETC Demo Video
 Note: The demo video uses SETC v1. 
+
 [![SETC Demo Video](https://img.youtube.com/vi/v09yiL_8USM/0.jpg)](https://www.youtube.com/watch?v=v09yiL_8USM)
 
 ## Roadmap
