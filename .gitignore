@@ -1,5 +1,6 @@
 notebooks/
 data/
+dev_notes.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
