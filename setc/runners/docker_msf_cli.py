@@ -5,7 +5,7 @@ import time
 class DockerMsfCli:
     def __init__(self, docker_client, name="target", 
                  network_name="set_framework_net", volume_name="set_logs", 
-                 target_image="", msf_exploit=""):
+                 target_image="", msf_exploit="", msf_options="", delay=0):
         self.client=docker_client
         self.target=None
         self.attack=None
@@ -17,6 +17,8 @@ class DockerMsfCli:
         self.target_image=target_image
         self.msf_exploit=msf_exploit
         self.target_logs=None
+        self.delay=delay
+        self.msf_options=msf_options
         
     def network_setup(self):
         net = None
@@ -43,6 +45,7 @@ class DockerMsfCli:
                                   detach=True, name=self.name,
                                   network=self.network)
         self.target=dk_target
+        time.sleep(self.delay)
 
     def target_cleanup(self):
         if self.tcpdump:
@@ -96,7 +99,7 @@ class DockerMsfCli:
             exploit"""
         #cant remember why the second arg is a blank string
         print("[*] Running exploit for %s" % self.name, end="", flush=True)
-        args = args % (self.msf_exploit, "", self.name, "%s-attack" % self.name)
+        args = args % (self.msf_exploit, self.msf_options, self.name, "%s-attack" % self.name)
         result = self.attack.exec_run(cmd=[cmd, flag, args], tty=True, detach=True)
 
     def exploit_success(self):

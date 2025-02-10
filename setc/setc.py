@@ -98,10 +98,20 @@ for system_config in config:
     print(status_str % (system_config["name"], 
                         system_config["settings"]["description"]))
     #TODO: if zeek is disabled, the docker class should not generate pcaps
+
+    #TODO: is there a generic way to add optional config fields???
+    delay=0
+    if "target_delay" in system_config["settings"]:
+        delay=int(system_config["settings"]["target_delay"])
+    msf_options=""
+    if "exploit_options" in system_config["settings"]:
+        msf_options=system_config["settings"]["exploit_options"]
     setc = DockerMsfCli(client,
                         name = system_config["name"],
                         target_image=system_config["settings"]["target_image"],
-                        msf_exploit=system_config["settings"]["exploit"])
+                        msf_exploit=system_config["settings"]["exploit"],
+                        msf_options=msf_options,
+                        delay=delay)
     
     setc.setup_all()
 
