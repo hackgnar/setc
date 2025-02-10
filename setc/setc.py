@@ -105,6 +105,9 @@ for system_config in config:
     
     setc.setup_all()
 
+    while not setc.ready_to_exploit():
+        pass
+
     setc.exploit_until_success()
 
     if args.zeek:

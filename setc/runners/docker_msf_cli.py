@@ -114,17 +114,19 @@ class DockerMsfCli:
                 return True
         return False
 
-    def exploit_until_success(self, status_delay=3, status_checks=10, tries=3):
+    def exploit_until_success(self, status_delay=3, status_checks=7, tries=4):
         for i in range(tries):
             self.exploit()
             for i in range (status_checks):
                 if self.exploit_success():
                     return True
                 time.sleep(status_delay)
-            print("\n[!] Exploit of %s failed or status unknown" % self.name)
+            print("\n", end="", flush=True)
+        print("[!] Exploit of %s failed or status unknown" % self.name)
         return False
     
     def ready_to_exploit(self):
+        #TODO: add a delay and retries argument similar to exploit_intil_success
         if self.target_logs == None:
             print("[*] Checking if target %s is setup" % self.name, end="",
                   flush=True)
