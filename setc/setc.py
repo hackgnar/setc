@@ -94,7 +94,7 @@ if args.splunk:
 # IF this is a docker based system
 # attack/target Setup systems
 for system_config in config:
-    status_str = "[*] Starting vulnerable server: %s - %s"
+    status_str = "[*] Starting servers for : %s - %s"
     print(status_str % (system_config["name"], 
                         system_config["settings"]["description"]))
     #TODO: if zeek is disabled, the docker class should not generate pcaps
@@ -104,13 +104,8 @@ for system_config in config:
                         msf_exploit=system_config["settings"]["exploit"])
     
     setc.setup_all()
-    while not setc.ready_to_exploit():
-        pass
-    
-    while(True):
-        setc.exploit()
-        if (setc.exploit_success()):
-            break
+
+    setc.exploit_until_success()
 
     if args.zeek:
         zeek.pcap_parse(system_config["name"])
