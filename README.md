@@ -124,7 +124,7 @@ options:
 ```
 
 ### SETC Demo Video
-Note: The demo video uses SETC v1. 
+Note: The demo video uses the older SETC Alpha release. 
 
 [![SETC Demo Video](https://img.youtube.com/vi/v09yiL_8USM/0.jpg)](https://www.youtube.com/watch?v=v09yiL_8USM)
 
