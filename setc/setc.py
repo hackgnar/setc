@@ -5,6 +5,7 @@ import json
 from runners.docker_msf_cli import DockerMsfCli
 from modules.zeek import ZeekModule
 from modules.splunk import SplunkModule
+from modules.docker_process_logger import DockerProcessLogs
 
 parser = argparse.ArgumentParser()
 parser.add_argument("config", type=str, 
@@ -52,6 +53,10 @@ fconfig.close()
 # framework setup
 client = docker.from_env()
 
+########################################
+###        PRE UP Core Runners       ###
+########################################
+
 # Volume & Network cleanup.  Should this be universal or per instance???
 if args.cleanup_network:
     if args.verbose:
@@ -80,16 +85,30 @@ if args.volume not in vols:
     client.volumes.create(args.volume)
 # Core system setup
 
+########################################
+###       PRE UP Core Modules        ###
+########################################
 if args.zeek:
     zeek = ZeekModule(client)
     zeek.setup()
     for system_config in config:
         zeek.create_log_directories(system_config["name"])
 
+tp = DockerProcessLogs(zeek.zeek)
+
 splunk = None
 if args.splunk:
     splunk = SplunkModule(client, splunk_password=args.password)
     splunk.setup()
+
+
+########################################
+###       Post UP Core Modules       ###
+########################################
+
+########################################
+###       Post UP Core Modules       ###
+########################################
 
 # IF this is a docker based system
 # attack/target Setup systems
@@ -112,13 +131,38 @@ for system_config in config:
                         msf_exploit=system_config["settings"]["exploit"],
                         msf_options=msf_options,
                         delay=delay)
-    
+ 
+    ########################################
+    ###          Pre UP Runners         ###
+    ########################################
+
+    ########################################
+    ###          Pre UP Modules         ###
+    ########################################
+   
     setc.setup_all()
+
+    ########################################
+    ###          Post UP Runners         ###
+    ########################################
+
+    ########################################
+    ###          Post UP Modules         ###
+    ########################################
+    tp.post_up(setc.target)
 
     while not setc.ready_to_exploit():
         pass
-
     setc.exploit_until_success()
+
+    ########################################
+    ###          Pre Down Runners        ###
+    ########################################
+
+    ########################################
+    ###          Pre Down Modules        ###
+    ########################################
+    tp.pre_down(setc.target)
 
     if args.zeek:
         zeek.pcap_parse(system_config["name"])
@@ -126,9 +170,33 @@ for system_config in config:
 
     setc.cleanup_all()
 
+    ########################################
+    ###          Post Down Runners       ###
+    ########################################
+
+    ########################################
+    ###          Post Down Modules       ###
+    ########################################
+
     if splunk and splunk.is_ready() and not splunk.setup_complete:
         print("[*] Creating Splunk indexes and parsing data")
         splunk.post_setup()
+
+########################################
+###       Pre Down Core Runners      ###
+########################################
+
+########################################
+###       Pre Down Core Modules      ###
+########################################
+
+########################################
+###       Post Down Core Runners     ###
+########################################
+
+########################################
+###       Post Down Core Modules     ###
+########################################
 
 if args.zeek:
     zeek.cleanup()
