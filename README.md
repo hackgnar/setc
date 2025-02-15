@@ -143,7 +143,7 @@ SETC is currently considered an Alpha version of the project. While the alpha ve
 | SIEM auto configuration | SIEM modules have no configuration stage. SIEMs are instantiated and data accessable to them, but configuration is a manual process during each run.|
 | Run time parralelization | A configuration entity takes about 3 minutes to run from start to finish (start services, exploit, & cleanup). While this feature is not needed, it would make demos look really “cool”.|
 | Scanning support | Scanning functionality on attack containers was not MVP for the alpha version. This could allow for auto exploit detection and other framework features.|
-| Exploit validation checks	| Due to time constrains, exploit validation checks were removed from MVP. These are needed to validate an exploit completed without inspection of log telemetry.|
+| DONE - Exploit validation checks	| Due to time constrains, exploit validation checks were removed from MVP. These are needed to validate an exploit completed without inspection of log telemetry.|
 | Vulnerable server service health check | Currently, the framework just waits 1-2 minutes to make sure a service container has started. Having a validity check for service status would increase run speeds and reliability.|
 | Support for docker-compose | Some vulnerable services require multiple containers. The current alpha version only supports vulnerable services contained in a single image.|
 | HTTP proxy module | The current version derives HTTP logs from pcap files. Having HTTP proxy modules would allow for more standardized web events, fields, etc.|
