@@ -112,25 +112,25 @@ class DockerProcessLogs:
 		self.ecs=None
 		self.cim=None
 
-	def post_up(self, read_container):
+	def post_up(self, read_container, vuln_name):
 		self.read_container=read_container
 		self.get_process_logs(read_container)
 		self.convert_to_cim()
 		self.convert_to_ecs()
 		self.convert_to_ocsf()
-		self.write_to_volume("cim")
-		self.write_to_volume("ecs")
-		self.write_to_volume("ocsf")
+		self.write_to_volume("cim", vuln_name)
+		self.write_to_volume("ecs", vuln_name)
+		self.write_to_volume("ocsf", vuln_name)
 
-	def pre_down(self, read_container):
+	def pre_down(self, read_container, vuln_name):
 		self.read_container=read_container
 		self.get_process_logs(read_container)
 		self.convert_to_cim()
 		self.convert_to_ecs()
 		self.convert_to_ocsf()
-		self.write_to_volume("cim")
-		self.write_to_volume("ecs")
-		self.write_to_volume("ocsf")
+		self.write_to_volume("cim", vuln_name)
+		self.write_to_volume("ecs", vuln_name)
+		self.write_to_volume("ocsf", vuln_name)
 
 	def get_process_logs(self, read_container):
 		args = "o user,pid,ppid,pgid,sess,jobc,state,tt,time,etime,logname,%cpu,%mem,args"
@@ -177,7 +177,7 @@ class DockerProcessLogs:
 			processes.append(flog)
 		self.cim=processes
 
-	def write_to_volume(self, log_type):
+	def write_to_volume(self, log_type, directory):
 		tar_fileobj = io.BytesIO()	 
 		with tarfile.open(fileobj=tar_fileobj, mode="w|") as tar:
 			my_content = json.dumps(getattr(self,log_type)).encode('utf-8')
@@ -186,4 +186,4 @@ class DockerProcessLogs:
 			tar.addfile(tf, io.BytesIO(my_content))  
 		tar_fileobj.flush()
 		tar_fileobj.seek(0)
-		self.write_container.put_archive("/data/%s/%s" % (self.read_container.name, log_type), tar_fileobj)
+		self.write_container.put_archive("/data/%s/%s" % (directory, log_type), tar_fileobj)

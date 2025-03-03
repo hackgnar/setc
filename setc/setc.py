@@ -3,6 +3,7 @@ import argparse
 import time
 import json
 from runners.docker_msf_cli import DockerMsfCli
+from runners.docker_compose_msf_cli import DockerComposeMsfCli
 from modules.zeek import ZeekModule
 from modules.splunk import SplunkModule
 from modules.docker_process_logger import DockerProcessLogs
@@ -103,7 +104,7 @@ if args.splunk:
 
 
 ########################################
-###       Post UP Core Modules       ###
+###      Post UP Core Modules       ###
 ########################################
 
 ########################################
@@ -125,12 +126,25 @@ for system_config in config:
     msf_options=""
     if "exploit_options" in system_config["settings"]:
         msf_options=system_config["settings"]["exploit_options"]
-    setc = DockerMsfCli(client,
-                        name = system_config["name"],
-                        target_image=system_config["settings"]["target_image"],
-                        msf_exploit=system_config["settings"]["exploit"],
-                        msf_options=msf_options,
-                        delay=delay)
+    setc = None
+    setc_type = None
+    if "yml_file" in system_config["settings"]:
+        setc = DockerComposeMsfCli(client,
+                                   vuln_name=system_config["name"],
+                                   target_name=system_config["settings"]["target_name"],
+                                   target_yml=system_config["settings"]["yml_file"],
+                                   msf_exploit=system_config["settings"]["exploit"],
+                                   msf_options=msf_options,
+                                   delay=delay)
+        setc_type="compose"
+    else:
+        setc = DockerMsfCli(client,
+                            name = system_config["name"],
+                            target_image=system_config["settings"]["target_image"],
+                            msf_exploit=system_config["settings"]["exploit"],
+                            msf_options=msf_options,
+                            delay=delay)
+        setc_type="docker"
  
     ########################################
     ###          Pre UP Runners         ###
@@ -149,10 +163,18 @@ for system_config in config:
     ########################################
     ###          Post UP Modules         ###
     ########################################
-    tp.post_up(setc.target)
+    if setc_type == "docker":
+        tp.post_up(setc.target, setc.target.name)
+    else:
+        #TODO: user docker client to pull the instance by name
+        target = client.containers.get(system_config["settings"]["target_name"])
+        tp.post_up(target, system_config["name"])
 
+    tries = 0
     while not setc.ready_to_exploit():
-        pass
+        if tries > 5:
+            break
+        tries += 1
     setc.exploit_until_success()
 
     ########################################
@@ -162,7 +184,13 @@ for system_config in config:
     ########################################
     ###          Pre Down Modules        ###
     ########################################
-    tp.pre_down(setc.target)
+    if setc_type == "docker":
+        tp.pre_down(setc.target, setc.target.name)
+    else:
+        #TODO: user docker client to pull the instance by name
+        target = client.containers.get(system_config["settings"]["target_name"])
+        tp.pre_down(target, system_config["name"])
+
 
     if args.zeek:
         zeek.pcap_parse(system_config["name"])
