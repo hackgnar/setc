@@ -1,11 +1,11 @@
 [
-    {"name":"CVE-2020-25646",
+    {"name":"CVE-2014-6271",
         "settings": {
-            "description":"Apisix HTTP token RCE",
-            "yml_file":"$VULN_PATH/vulhub/apisix/CVE-2020-13945/docker-compose.yml",
-            "target_name":"setc-apisix-1",
-            "exploit": "multi/http/apache_apisix_api_default_token_rce",
-            "exploit_options":"set PAYLOAD cmd/unix/reverse_bash;set RPORT 9080;"
+            "description":"Apache CGI shellshock using user agent",
+            "yml_file":"$VULN_PATH/vulhub/bash/CVE-2014-6271/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/apache_mod_cgi_bash_env_exec",
+            "exploit_options":"set TARGETURI /victim.cgi;"
         }
     }
 ]

