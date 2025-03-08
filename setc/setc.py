@@ -42,6 +42,10 @@ parser.add_argument("-v", "--verbose",
 parser.add_argument("--zeek",
                     help="SETC parses pcap logs with zeek by default. Use this flag to DISABLE zeek.",
                     action='store_false')
+
+parser.add_argument("--msf", 
+                    help="Override the default metasploit framework image. This is useful if you would like to use custom built or bleeding edge msf image to get access to the latest or custom msf exploits",
+                    default="metasploitframework/metasploit-framework:6.2.33")
 args = parser.parse_args()
 
 # SETTINGS
@@ -135,7 +139,8 @@ for system_config in config:
                                    target_yml=system_config["settings"]["yml_file"],
                                    msf_exploit=system_config["settings"]["exploit"],
                                    msf_options=msf_options,
-                                   delay=delay)
+                                   delay=delay,
+                                   msf_image=args.msf)
         setc_type="compose"
     else:
         setc = DockerMsfCli(client,
@@ -143,7 +148,8 @@ for system_config in config:
                             target_image=system_config["settings"]["target_image"],
                             msf_exploit=system_config["settings"]["exploit"],
                             msf_options=msf_options,
-                            delay=delay)
+                            delay=delay,
+                            msf_image=args.msf)
         setc_type="docker"
  
     ########################################

@@ -15,7 +15,8 @@ A config will have the following:
 class DockerComposeMsfCli(BaseRunner):
     def __init__(self, docker_client, vuln_name="", target_name="target", 
                  network_name="set_framework_net", volume_name="set_logs", 
-                 target_yml="", msf_exploit="", msf_options="", delay=0):
+                 target_yml="", msf_exploit="", msf_options="", delay=0,
+                 msf_image="metasploitframework/metasploit-framework:6.2.33"):
         super().__init__(docker_client, network_name, volume_name)
         self.vuln_name = vuln_name
         self.target_yml=os.path.expandvars(target_yml)
@@ -23,6 +24,7 @@ class DockerComposeMsfCli(BaseRunner):
         self.msf_exploit=msf_exploit
         self.msf_options=msf_options
         self.delay=delay
+        self.msf_image=msf_image 
 
         self.setc_yml = os.path.expandvars("$SETC_PATH/example_configurations/compose_examples/yml/setc-net_docker-compose.yml")
         self.wdocker = None
@@ -61,43 +63,6 @@ class DockerComposeMsfCli(BaseRunner):
         for instance in self.tcpdump_instances:
             instance.stop()
             instance.remove()
-
-    def attack_setup(self):
-        print("[*] Starting attack system for %s" % self.target_name)
-        dk_attack = self.client.containers.run("metasploitframework/metasploit-framework:6.2.33",
-                                 detach=True, name="%s-attack" % self.target_name,
-                                 network=self.network, tty=True)
-        self.attack=dk_attack
-
-    def attack_cleanup(self):
-        self.attack.stop()
-        self.attack.remove()
-
-    def exploit(self):
-        cmd = "/usr/src/metasploit-framework/msfconsole"
-        flag = "-x"
-        args = """use %s; %s \
-            set RHOSTS %s; \
-            set LHOST %s; \
-            set ForceExploit true; \
-            set AutoCheck false; \
-            set ExitOnSession false; \
-            exploit"""
-        #cant remember why the second arg is a blank string
-        print("[*] Running exploit for %s" % self.target_name, end="", flush=True)
-        args = args % (self.msf_exploit, self.msf_options, self.target_name, "%s-attack" % self.target_name)
-        result = self.attack.exec_run(cmd=[cmd, flag, args], tty=True, detach=True)
-
-    def exploit_success(self):
-        cmd = "netstat |grep 4444 |grep ESTABLISHED"
-        result = self.attack.exec_run(cmd=cmd, tty=True)
-        cmd_result = str(result.output)
-        print('.', end="", flush=True)
-        for line in cmd_result.splitlines():
-            if "4444" in str(line) and "ESTABLISHED" in str(line):
-                print("\n[*] Exploit of %s success" % self.target_name)
-                return True
-        return False
 
     def ready_to_exploit(self):
          #TODO: add a delay and retries argument similar to exploit_intil_success

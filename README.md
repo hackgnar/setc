@@ -97,30 +97,29 @@ SETC is fairly straight forward to run. The only required argument is a configur
 
 
 ```
-% python3 setc.py --help
-usage: setc.py [-h] [-p PASSWORD] [--volume VOLUME] [--network NETWORK] [--splunk] [--cleanup_network] [--cleanup_volume]
-               [-v] [--zeek]
+
+$ python3 setc.py --help
+usage: setc.py [-h] [-p PASSWORD] [--volume VOLUME] [--network NETWORK] [--splunk] [--cleanup_network] [--cleanup_volume] [-v] [--zeek] [--msf MSF]
                config
 
 positional arguments:
-  config                The SETC configuration file to use. Example configuration files are provided in the projects
-                        sample_configuration directory.
+  config                The SETC configuration file to use. Example configuration files are provided in the projects sample_configuration directory.
 
 options:
   -h, --help            show this help message and exit
   -p PASSWORD, --password PASSWORD
-                        The password to use for SIEM services. If not provided, a default password of password1234 will be
-                        used
-  --volume VOLUME       The Docker volume to use for storing and manulpulating SETC log files. If not provided, the volume
-                        set_logs will be used
-  --network NETWORK     The Docker network to be used for container network connections. If not provided, the network
-                        set_framework_net will be used.
-  --splunk              Create a Splunk instance and populate it with SETC logs. The Splunk instance will remain up by
-                        default after the completion of a SETC run. The instance must be cleaned up manually.
+                        The password to use for SIEM services. If not provided, a default password of password1234 will be used
+  --volume VOLUME       The Docker volume to use for storing and manulpulating SETC log files. If not provided, the volume set_logs will be used
+  --network NETWORK     The Docker network to be used for container network connections. If not provided, the network set_framework_net will be
+                        used.
+  --splunk              Create a Splunk instance and populate it with SETC logs. The Splunk instance will remain up by default after the completion
+                        of a SETC run. The instance must be cleaned up manually.
   --cleanup_network     Delete the SETC docker network before running.
   --cleanup_volume      Delete the SETC docker log volume before running.
   -v, --verbose         Enable SETC debug logging.
   --zeek                SETC parses pcap logs with zeek by default. Use this flag to DISABLE zeek.
+  --msf MSF             Override the default metasploit framework image. This is useful if you would like to use custom built or bleeding edge msf
+                        image to get access to the latest or custom msf exploits
 ```
 
 ### SETC Demo Video
