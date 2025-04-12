@@ -1,0 +1,10 @@
+[
+    {"name":"CVE-2023-38646",
+        "settings": {
+            "description":"Metabase Setup Token RCE",
+            "yml_file":"$VULN_PATH/vulhub/metabase/CVE-2023-38646/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "linux/http/metabase_setup_token_rce"
+        }
+    }
+]

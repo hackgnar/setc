@@ -1,0 +1,12 @@
+[
+    {"name":"CVE-2021-42013",
+        "settings": {
+            "description":"HTTP apache normalize RCE",
+            "target_image":"cve-2021-42013",
+            "target_delay":"5",
+            "attack_src":"msf",
+            "exploit": "exploit/multi/http/apache_normalize_path_rce",
+            "exploit_options":"set RPORT 80; set SSL false;"
+        }
+    }
+]

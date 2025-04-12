@@ -26,7 +26,7 @@ class DockerComposeMsfCli(BaseRunner):
         self.delay=delay
         self.msf_image=msf_image 
 
-        self.setc_yml = os.path.expandvars("$SETC_PATH/example_configurations/compose_examples/yml/setc-net_docker-compose.yml")
+        self.setc_yml = os.path.expandvars("$SETC_PATH/example_configurations/setc-net_docker-compose.yml")
         self.wdocker = None
         self.tcpdump_instances = []
         self.attack=None

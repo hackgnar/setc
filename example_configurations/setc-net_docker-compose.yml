@@ -1,0 +1,4 @@
+networks:
+  default:
+    name: set_framework_net
+    external: true
