@@ -1,10 +1,11 @@
 [
-    {"name":"CVE-2019-17558",
+    {"name":"CVE-2022-22963",
         "settings": {
-            "description":"Apache Solr Remote Code Execution via Velocity Template",
-            "yml_file":"$VULN_PATH/vulhub/solr/CVE-2019-17558/docker-compose.yml",
-            "target_name":"setc-solr-1",
-            "exploit": "multi/http/solr_velocity_rce"
+            "description":"Spring Cloud Function SpEL Injection",
+            "yml_file":"$VULN_PATH/vulhub/spring/CVE-2022-22963/docker-compose.yml",
+            "target_name":"setc-spring-1",
+            "exploit": "multi/http/spring_cloud_function_spel_injection",
+            "exploit_options":"set ForceExploit True;"
         }
     }
 ]

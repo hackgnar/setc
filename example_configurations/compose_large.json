@@ -238,6 +238,32 @@
             "target_name":"setc-solr-1",
             "exploit": "multi/http/solr_velocity_rce"
         }
+    },
+    {"name":"CVE-2018-11770",
+        "settings": {
+            "description":"Apache Spark Unauthenticated Command Execution",
+            "yml_file":"$VULN_PATH/vulhub/spark/unacc/docker-compose.yml",
+            "target_name":"setc-master-1",
+            "exploit": "linux/http/spark_unauth_rce"
+        }
+    },
+    {"name":"CVE-2022-22963",
+        "settings": {
+            "description":"Spring Cloud Function SpEL Injection",
+            "yml_file":"$VULN_PATH/vulhub/spring/CVE-2022-22963/docker-compose.yml",
+            "target_name":"setc-spring-1",
+            "exploit": "linux/http/spark_unauth_rce",
+            "exploit_options":"set ForceExploit True"
+        }
+    },
+    {"name":"CVE-2022-22963",
+        "settings": {
+            "description":"Spring Cloud Function SpEL Injection",
+            "yml_file":"$VULN_PATH/vulhub/spring/CVE-2022-22963/docker-compose.yml",
+            "target_name":"setc-spring-1",
+            "exploit": "multi/http/spring_cloud_function_spel_injection",
+            "exploit_options":"set ForceExploit True;"
+        }
     }
 
 ]
