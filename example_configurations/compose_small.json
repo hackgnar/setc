@@ -1,10 +1,10 @@
 [
-    {"name":"CVE-2023-38646",
+    {"name":"CVE-2017-9841",
         "settings": {
-            "description":"Metabase Setup Token RCE",
-            "yml_file":"$VULN_PATH/vulhub/metabase/CVE-2023-38646/docker-compose.yml",
-            "target_name":"setc-web-1",
-            "exploit": "linux/http/metabase_setup_token_rce"
+            "description":"PHP Unauthenticated OS Command Execution",
+            "yml_file":"$VULN_PATH/vulhub/php/xdebug-rce/docker-compose.yml",
+            "target_name":"setc-xdebug2-1",
+            "exploit": "unix/http/xdebug_unauth_exec"
         }
     }
 ]
