@@ -1,10 +1,10 @@
 [
-    {"name":"CVE-2017-9841",
+    {"name":"CVE-2019-17558",
         "settings": {
-            "description":"PHP Unauthenticated OS Command Execution",
-            "yml_file":"$VULN_PATH/vulhub/php/xdebug-rce/docker-compose.yml",
-            "target_name":"setc-xdebug2-1",
-            "exploit": "unix/http/xdebug_unauth_exec"
+            "description":"Apache Solr Remote Code Execution via Velocity Template",
+            "yml_file":"$VULN_PATH/vulhub/solr/CVE-2019-17558/docker-compose.yml",
+            "target_name":"setc-solr-1",
+            "exploit": "multi/http/solr_velocity_rce"
         }
     }
 ]
