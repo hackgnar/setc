@@ -2,13 +2,14 @@ import time
 
 class BaseRunner:
     def __init__(self, docker_client, network_name="set_framework_net",
-                 volume_name="set_logs", target_name="target",
+                 volume_name="set_logs", target_name="target", 
                  msf_image="metasploitframework/metasploit-framework:6.2.33"):
         self.client=docker_client
         self.network=network_name
         self.volume=volume_name
         self.msf_image=msf_image
         self.target_name=target_name
+        self.exploit_success_pattern="4444"
 
     def network_setup(self):
         net = None
@@ -78,13 +79,14 @@ class BaseRunner:
         args = args % (self.msf_exploit, self.msf_options, self.target_name, "%s-attack" % self.target_name)
         result = self.attack.exec_run(cmd=[cmd, flag, args], tty=True, detach=True)
 
-    def exploit_success(self):
-        cmd = "netstat |grep 4444 |grep ESTABLISHED"
+    def exploit_success(self, pattern=4444):
+        #TODO: create config support for custom exploit estabilished pattern
+        cmd = "netstat |grep %s |grep ESTABLISHED" % pattern
         result = self.attack.exec_run(cmd=cmd, tty=True)
         cmd_result = str(result.output)
         print('.', end="", flush=True)
         for line in cmd_result.splitlines():
-            if "4444" in str(line) and "ESTABLISHED" in str(line):
+            if pattern in str(line) and "ESTABLISHED" in str(line):
                 print("\n[*] Exploit of %s success" % self.target_name)
                 return True
         return False
@@ -93,7 +95,7 @@ class BaseRunner:
         for i in range(tries):
             self.exploit()
             for i in range (status_checks):
-                if self.exploit_success():
+                if self.exploit_success(pattern=self.exploit_success_pattern):
                     return True
                 time.sleep(status_delay)
             print("\n", end="", flush=True)

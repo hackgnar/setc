@@ -139,7 +139,6 @@ for system_config in config:
                                    target_yml=system_config["settings"]["yml_file"],
                                    msf_exploit=system_config["settings"]["exploit"],
                                    msf_options=msf_options,
-                                   delay=delay,
                                    msf_image=args.msf)
         setc_type="compose"
     else:
@@ -151,6 +150,9 @@ for system_config in config:
                             delay=delay,
                             msf_image=args.msf)
         setc_type="docker"
+    #Note: Trying the pattern match passing a different way to cut down on class arguments
+    if "exploit_success_pattern" in system_config["settings"]:
+        setc.exploit_success_pattern=system_config["settings"]["exploit_success_pattern"]
  
     ########################################
     ###          Pre UP Runners         ###
