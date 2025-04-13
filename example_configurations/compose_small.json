@@ -1,11 +1,10 @@
 [
-    {"name":"CVE-2022-22963",
+    {"name":"CVE-2019-2725",
         "settings": {
-            "description":"Spring Cloud Function SpEL Injection",
-            "yml_file":"$VULN_PATH/vulhub/spring/CVE-2022-22963/docker-compose.yml",
-            "target_name":"setc-spring-1",
-            "exploit": "multi/http/spring_cloud_function_spel_injection",
-            "exploit_options":"set ForceExploit True;"
+            "description":"Oracle Weblogic Server Deserialization RCE",
+            "yml_file":"$VULN_PATH/vulhub/weblogic/CVE-2018-2628/docker-compose.yml",
+            "target_name":"setc-weblogic-1",
+            "exploit": "multi/misc/weblogic_deserialize_asyncresponseservice"
         }
     }
 ]

