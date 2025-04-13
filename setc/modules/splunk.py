@@ -13,7 +13,7 @@ class SplunkModule:
         dk_splunk = self.client.containers.run("splunk/splunk", detach=True, 
                                           name="splunk", 
                                           volumes={"set_logs":{'bind':'/data', 'mode':'rw'}}, 
-                                          ports={'8000/tcp':8000}, tty=True, 
+                                          ports={'8002/tcp':8000}, tty=True, 
                                           environment=["SPLUNK_START_ARGS=--accept-license",
                                                        "SPLUNK_PASSWORD={}".format(self.password)],
                                           platform="linux/amd64")
