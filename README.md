@@ -81,14 +81,14 @@ docker pull vulhub/laravel:8.4.2
 * CVE-2021-41773
 ```
 cd docker_images/http/CVE-2021-41773
-docker build -t cve-2021-41773
+docker build -t cve-2021-41773 .
 
 ```
 
 * CVE-2021-42013
 ```
 cd docker_images/http/CVE-2021-42013
-docker build -t cve-2021-42013
+docker build -t cve-2021-42013 .
 
 ```
 
