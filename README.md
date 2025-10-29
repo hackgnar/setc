@@ -147,3 +147,18 @@ SETC is currently considered an Alpha version of the project. While the alpha ve
 | Support for docker-compose | Some vulnerable services require multiple containers. The current alpha version only supports vulnerable services contained in a single image.|
 | HTTP proxy module | The current version derives HTTP logs from pcap files. Having HTTP proxy modules would allow for more standardized web events, fields, etc.|
 |Consolidate telemetry and attack modules | To keep the design simple, telemetry and attack modules are duplicated for each configuration entity. Reusing containers would speed up runtime.| 
+
+## Citation
+If you use this project in your research, please cite:
+```
+@INPROCEEDINGS{10778761,
+  author={Holeman, Ryan and Hastings, John D. and Mathew Vaidyan, Varghese},
+  booktitle={2024 Cyber Awareness and Research Symposium (CARS)}, 
+  title={SETC: A Vulnerability Telemetry Collection Framework}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={1-7},
+  keywords={Threat modeling;Technological innovation;Web and internet services;Manuals;Data collection;Software;Security;Telemetry;Monitoring;Testing;logging model;vulnerability;exploit;intrusion detection;security events},
+  doi={10.1109/CARS61786.2024.10778761}}
+```
