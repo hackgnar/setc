@@ -59,8 +59,22 @@ def parse_args():
     return args, config
 
 
+BANNER = r"""
+   _____ ________________
+  / ___// ____/_  __/ ____/
+  \__ \/ __/   / / / /
+ ___/ / /___  / / / /___
+/____/_____/ /_/  \____/
+
+  Security Event Traffic Creator
+  [ exploit . capture . detect ]
+"""
+
+
 def main():
     args, config = parse_args()
+
+    print(BANNER)
 
     # framework setup
     client = docker.from_env()
