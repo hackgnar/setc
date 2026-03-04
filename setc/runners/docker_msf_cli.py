@@ -1,5 +1,10 @@
+import logging
 import time
+import docker
 from runners.base import BaseRunner
+from utils import safe_stop_remove
+
+logger = logging.getLogger(__name__)
 
 class DockerMsfCli(BaseRunner):
     def __init__(self, docker_client, name="target", 
@@ -21,7 +26,7 @@ class DockerMsfCli(BaseRunner):
         self.msf_image= msf_image 
         
     def target_setup(self):
-        print("[*] Starting vulnerable target %s" % self.name)
+        logger.debug("Starting vulnerable target %s", self.name)
         #tcpdump setup should happen automaticly after target setup
         dk_target = self.client.containers.run(self.target_image,
                                   detach=True, name=self.name,
@@ -32,11 +37,10 @@ class DockerMsfCli(BaseRunner):
     def target_cleanup(self):
         if self.tcpdump:
             self.tcpdump_cleanup()
-        self.target.stop()
-        self.target.remove()
+        safe_stop_remove(self.target, label=self.name)
 
     def tcpdump_setup(self):
-        cmd = "-U -v -w /data/%s/pcap/%s.pcap" % (self.name, self.name) #I shortened this and removed the pcap dir
+        cmd = ["-U", "-v", "-w", f"/data/{self.name}/pcap/{self.name}.pcap"]
         dk_tcpdump = self.client.containers.run("tcpdump",command=cmd, detach=True,
                                   name="%s-tcpdump" % self.name, privileged=True,
                                   network="container:%s" % self.name, #TODO: this should be derived from self.target.name
@@ -44,20 +48,24 @@ class DockerMsfCli(BaseRunner):
         self.tcpdump=dk_tcpdump
 
     def tcpdump_cleanup(self):
-        self.tcpdump.stop()
-        self.tcpdump.remove()
+        safe_stop_remove(self.tcpdump, label="%s-tcpdump" % self.name)
 
     def ready_to_exploit(self):
         #TODO: add a delay and retries argument similar to exploit_intil_success
         if self.target_logs == None:
-            print("[*] Checking if target %s is setup" % self.name, end="",
-                  flush=True)
+            logger.debug("Checking if target %s is setup", self.name)
         else:
-            print('.', end="", flush=True)
+            self._progress_dot()
         #temp solution
-        logs = self.target.logs()
+        try:
+            logs = self.target.logs()
+        except (docker.errors.NotFound, docker.errors.APIError) as e:
+            self._progress_end()
+            logger.warning("Could not get target logs: %s", e)
+            return False
         if self.target_logs == logs:
-            print("\n[*] Target %s is ready for exploit" % self.name)
+            self._progress_end()
+            logger.info("Target %s is ready for exploit", self.name)
             return True
         else:
             self.target_logs = logs

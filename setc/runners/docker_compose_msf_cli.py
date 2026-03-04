@@ -1,7 +1,14 @@
-from python_on_whales import DockerClient
-import time
-from runners.base import BaseRunner
+import logging
 import os
+import time
+
+from python_on_whales import DockerClient
+from python_on_whales.exceptions import DockerException
+import docker
+from runners.base import BaseRunner
+from utils import safe_stop_remove
+
+logger = logging.getLogger(__name__)
 """
 A config will have the following:
 - client - for interacting with network and volume
@@ -19,20 +26,36 @@ class DockerComposeMsfCli(BaseRunner):
                  msf_image="metasploitframework/metasploit-framework:6.2.33"):
         super().__init__(docker_client, network_name, volume_name)
         self.vuln_name = vuln_name
-        self.target_yml=os.path.expandvars(target_yml)
+        self.target_yml = self._expand_and_validate(target_yml, "yml_file")
         self.target_name=target_name
         self.msf_exploit=msf_exploit
         self.msf_options=msf_options
         self.delay=delay
-        self.msf_image=msf_image 
+        self.msf_image=msf_image
 
-        self.setc_yml = os.path.expandvars("$SETC_PATH/example_configurations/setc-net_docker-compose.yml")
+        self.setc_yml = self._expand_and_validate(
+            "$SETC_PATH/example_configurations/setc-net_docker-compose.yml", "SETC_PATH")
         self.wdocker = None
         self.tcpdump_instances = []
         self.attack=None
         self.target_logs=None
 
  
+    @staticmethod
+    def _expand_and_validate(path, label):
+        expanded = os.path.expandvars(path)
+        if "$" in expanded:
+            unset = [tok for tok in expanded.split(os.sep) if tok.startswith("$")]
+            raise EnvironmentError(
+                f"Environment variable(s) not set for {label}: {', '.join(unset)}. "
+                f"Path after expansion: {expanded}"
+            )
+        if not os.path.exists(expanded):
+            raise FileNotFoundError(
+                f"Path does not exist for {label}: {expanded}"
+            )
+        return expanded
+
     def target_setup(self):
         wdocker = DockerClient(compose_project_name="setc", compose_files=[self.target_yml, self.setc_yml])
         wdocker.compose.build()
@@ -42,8 +65,11 @@ class DockerComposeMsfCli(BaseRunner):
     def target_cleanup(self):
         if self.tcpdump_instances:
             self.tcpdump_cleanup()
-        self.wdocker.compose.stop()
-        self.wdocker.compose.rm()
+        try:
+            self.wdocker.compose.stop()
+            self.wdocker.compose.rm()
+        except DockerException as e:
+            logger.warning("Failed to stop/remove compose services: %s", e)
 
     def tcpdump_setup(self):
         tcpdump_instances = []
@@ -51,7 +77,7 @@ class DockerComposeMsfCli(BaseRunner):
             #TODO: parse pcaps for all compose instances. For now, we are only parsing the target instance
             if i.name == self.target_name:
                 #TODO: fix this with named arguments
-                cmd = "-U -v -w /data/%s/pcap/%s.pcap" % (self.vuln_name, self.vuln_name)
+                cmd = ["-U", "-v", "-w", f"/data/{self.vuln_name}/pcap/{self.vuln_name}.pcap"]
                 dk_tcpdump = self.client.containers.run("tcpdump",command=cmd, detach=True,
                                   name="%s-tcpdump" % self.target_name, privileged=True,
                                   network="container:%s" % self.target_name, #TODO: this should be derived from self.target.name
@@ -61,21 +87,25 @@ class DockerComposeMsfCli(BaseRunner):
 
     def tcpdump_cleanup(self):
         for instance in self.tcpdump_instances:
-            instance.stop()
-            instance.remove()
+            safe_stop_remove(instance, label="tcpdump")
 
     def ready_to_exploit(self):
          #TODO: add a delay and retries argument similar to exploit_intil_success
         if self.target_logs == None:
-            print("[*] Checking if target %s is setup" % self.target_name, end="",
-                  flush=True)
+            logger.debug("Checking if target %s is setup", self.target_name)
         else:
-            print('.', end="", flush=True)
+            self._progress_dot()
         #temp solution
-        target = self.client.containers.get(self.target_name)  
-        logs = target.logs()
+        try:
+            target = self.client.containers.get(self.target_name)
+            logs = target.logs()
+        except (docker.errors.NotFound, docker.errors.APIError) as e:
+            self._progress_end()
+            logger.warning("Could not get target logs: %s", e)
+            return False
         if self.target_logs == logs:
-            print("\n[*] Target %s is ready for exploit" % self.target_name)
+            self._progress_end()
+            logger.info("Target %s is ready for exploit", self.target_name)
             return True
         else:
             self.target_logs = logs

@@ -1,4 +1,12 @@
+import logging
+import shlex
+import sys
 import time
+import docker
+from utils import safe_stop_remove
+
+logger = logging.getLogger(__name__)
+
 
 class BaseRunner:
     def __init__(self, docker_client, network_name="set_framework_net",
@@ -35,6 +43,16 @@ class BaseRunner:
     def target_cleanup(self):
         pass
 
+    @staticmethod
+    def _progress_dot():
+        sys.stderr.write(".")
+        sys.stderr.flush()
+
+    @staticmethod
+    def _progress_end():
+        sys.stderr.write("\n")
+        sys.stderr.flush()
+
     def tcpdump_setup(self):
         pass
 
@@ -43,15 +61,14 @@ class BaseRunner:
 
     def attack_setup(self):
         #TODO: moigrate this over th the base class
-        print("[*] Starting attack system for %s" % self.target_name)
+        logger.debug("Starting attack system for %s", self.target_name)
         dk_attack = self.client.containers.run(self.msf_image,
                                  detach=True, name="%s-attack" % self.target_name,
                                  network=self.network, tty=True)
         self.attack=dk_attack
 
     def attack_cleanup(self):
-        self.attack.stop()
-        self.attack.remove()
+        safe_stop_remove(self.attack, label="%s-attack" % self.target_name)
 
     def setup_all(self):
         self.network_setup()
@@ -75,19 +92,24 @@ class BaseRunner:
             set ExitOnSession false; \
             exploit"""
         #cant remember why the second arg is a blank string
-        print("[*] Running exploit for %s" % self.target_name, end="", flush=True)
+        logger.debug("Running exploit for %s", self.target_name)
         args = args % (self.msf_exploit, self.msf_options, self.target_name, "%s-attack" % self.target_name)
         result = self.attack.exec_run(cmd=[cmd, flag, args], tty=True, detach=True)
 
     def exploit_success(self, pattern=4444):
         #TODO: create config support for custom exploit estabilished pattern
-        cmd = "netstat |grep %s |grep ESTABLISHED" % pattern
-        result = self.attack.exec_run(cmd=cmd, tty=True)
+        cmd = ["sh", "-c", f"netstat | grep {shlex.quote(str(pattern))} | grep ESTABLISHED"]
+        try:
+            result = self.attack.exec_run(cmd=cmd, tty=True)
+        except (docker.errors.NotFound, docker.errors.APIError) as e:
+            logger.warning("Could not check exploit status: %s", e)
+            return False
         cmd_result = str(result.output)
-        print('.', end="", flush=True)
+        self._progress_dot()
         for line in cmd_result.splitlines():
             if pattern in str(line) and "ESTABLISHED" in str(line):
-                print("\n[*] Exploit of %s success" % self.target_name)
+                self._progress_end()
+                logger.info("Exploit of %s success", self.target_name)
                 return True
         return False
 
@@ -98,8 +120,8 @@ class BaseRunner:
                 if self.exploit_success(pattern=self.exploit_success_pattern):
                     return True
                 time.sleep(status_delay)
-            print("\n", end="", flush=True)
-        print("[!] Exploit failed or status unknown")
+            self._progress_end()
+        logger.warning("Exploit failed or status unknown")
         return False
 
     def ready_to_exploit(self):
