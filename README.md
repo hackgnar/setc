@@ -121,6 +121,12 @@ options:
   --msf MSF             Override the default metasploit framework image. This is useful if you would like to use custom built or bleeding edge msf
                         image to get access to the latest or custom msf exploits
 ```
+example run:
+```
+export VULN_PATH=/path_to_vuln_images/vulhub
+export SETC_PATH=/path_to_setc/setc
+python setc.py ../example_configurations/compose_small.yml
+```
 
 ### SETC Demo Video
 Note: The demo video uses the older SETC Alpha release. 
