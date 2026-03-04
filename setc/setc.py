@@ -53,8 +53,13 @@ def parse_args():
 
     args = parser.parse_args()
 
-    with open(args.config, "r") as f:
-        config = json.load(f)
+    try:
+        with open(args.config, "r") as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        parser.error(f"Configuration file not found: {args.config}")
+    except json.JSONDecodeError as e:
+        parser.error(f"Invalid JSON in configuration file: {e}")
 
     return args, config
 
@@ -77,186 +82,211 @@ def main():
     print(BANNER)
 
     # framework setup
-    client = docker.from_env()
+    try:
+        client = docker.from_env()
+    except docker.errors.DockerException as e:
+        print("[!] Failed to connect to Docker. Is Docker running?")
+        print(f"[!] Error: {e}")
+        return
 
-    ########################################
-    ###        PRE UP Core Runners       ###
-    ########################################
-
-    # Volume & Network cleanup
-    if args.cleanup_network:
-        if args.verbose:
-            print("[i] Cleaning up old SETC networks")
-        networks = [i.name for i in client.networks.list()]
-        if args.network in networks:
-            net = client.networks.get(args.network)
-            net.remove()
-
-    if args.cleanup_volume:
-        if args.verbose:
-            print("[i] Cleaning up old SETC volumes")
-        vols = [i.name for i in client.volumes.list()]
-        if args.volume in vols:
-            vol = client.volumes.get(args.volume)
-            vol.remove()
-
-
-    networks = [i.name for i in client.networks.list()]
-    if args.network not in networks:
-        client.networks.create(args.network, driver="bridge")
-
-
-    vols = [i.name for i in client.volumes.list()]
-    if args.volume not in vols:
-        client.volumes.create(args.volume)
-    # Core system setup
-
-    ########################################
-    ###       PRE UP Core Modules        ###
-    ########################################
-    if not args.no_zeek:
-        zeek = ZeekModule(client)
-        zeek.setup()
-        for system_config in config:
-            zeek.create_log_directories(system_config["name"])
-
-    tp = DockerProcessLogs(zeek.zeek)
-
+    zeek = None
     splunk = None
-    if args.splunk:
-        splunk = SplunkModule(client, splunk_password=args.password)
-        splunk.setup()
 
-
-    ########################################
-    ###      Post UP Core Modules       ###
-    ########################################
-
-    ########################################
-    ###       Post UP Core Modules       ###
-    ########################################
-
-    # IF this is a docker based system
-    # attack/target Setup systems
-    for system_config in config:
-        status_str = "[*] Starting servers for : %s - %s"
-        print(status_str % (system_config["name"],
-                            system_config["settings"]["description"]))
-        #TODO: if zeek is disabled, the docker class should not generate pcaps
-
-        #TODO: is there a generic way to add optional config fields???
-        delay=0
-        if "target_delay" in system_config["settings"]:
-            delay=int(system_config["settings"]["target_delay"])
-        msf_options=""
-        if "exploit_options" in system_config["settings"]:
-            msf_options=system_config["settings"]["exploit_options"]
-        setc = None
-        setc_type = None
-        if "yml_file" in system_config["settings"]:
-            setc = DockerComposeMsfCli(client,
-                                       vuln_name=system_config["name"],
-                                       target_name=system_config["settings"]["target_name"],
-                                       target_yml=system_config["settings"]["yml_file"],
-                                       msf_exploit=system_config["settings"]["exploit"],
-                                       msf_options=msf_options,
-                                       msf_image=args.msf)
-            setc_type="compose"
-        else:
-            setc = DockerMsfCli(client,
-                                name = system_config["name"],
-                                target_image=system_config["settings"]["target_image"],
-                                msf_exploit=system_config["settings"]["exploit"],
-                                msf_options=msf_options,
-                                delay=delay,
-                                msf_image=args.msf)
-            setc_type="docker"
-        #Note: Trying the pattern match passing a different way to cut down on class arguments
-        if "exploit_success_pattern" in system_config["settings"]:
-            setc.exploit_success_pattern=system_config["settings"]["exploit_success_pattern"]
-
+    try:
         ########################################
-        ###          Pre UP Runners         ###
+        ###        PRE UP Core Runners       ###
         ########################################
 
-        ########################################
-        ###          Pre UP Modules         ###
-        ########################################
+        # Volume & Network cleanup
+        if args.cleanup_network:
+            if args.verbose:
+                print("[i] Cleaning up old SETC networks")
+            networks = [i.name for i in client.networks.list()]
+            if args.network in networks:
+                net = client.networks.get(args.network)
+                net.remove()
 
-        setc.setup_all()
-
-        ########################################
-        ###          Post UP Runners         ###
-        ########################################
-
-        ########################################
-        ###          Post UP Modules         ###
-        ########################################
-        if setc_type == "docker":
-            tp.post_up(setc.target, setc.target.name)
-        else:
-            #TODO: user docker client to pull the instance by name
-            target = client.containers.get(system_config["settings"]["target_name"])
-            tp.post_up(target, system_config["name"])
-
-        tries = 0
-        while not setc.ready_to_exploit():
-            if tries > 5:
-                break
-            tries += 1
-        setc.exploit_until_success()
-
-        ########################################
-        ###          Pre Down Runners        ###
-        ########################################
-
-        ########################################
-        ###          Pre Down Modules        ###
-        ########################################
-        if setc_type == "docker":
-            tp.pre_down(setc.target, setc.target.name)
-        else:
-            #TODO: user docker client to pull the instance by name
-            target = client.containers.get(system_config["settings"]["target_name"])
-            tp.pre_down(target, system_config["name"])
+        if args.cleanup_volume:
+            if args.verbose:
+                print("[i] Cleaning up old SETC volumes")
+            vols = [i.name for i in client.volumes.list()]
+            if args.volume in vols:
+                vol = client.volumes.get(args.volume)
+                vol.remove()
 
 
+        networks = [i.name for i in client.networks.list()]
+        if args.network not in networks:
+            client.networks.create(args.network, driver="bridge")
+
+
+        vols = [i.name for i in client.volumes.list()]
+        if args.volume not in vols:
+            client.volumes.create(args.volume)
+        # Core system setup
+
+        ########################################
+        ###       PRE UP Core Modules        ###
+        ########################################
         if not args.no_zeek:
-            zeek.pcap_parse(system_config["name"])
-            zeek.to_logstandard(system_config["name"])
+            zeek = ZeekModule(client)
+            zeek.setup()
+            for system_config in config:
+                zeek.create_log_directories(system_config["name"])
 
-        setc.cleanup_all()
+        tp = None
+        if zeek:
+            tp = DockerProcessLogs(zeek.zeek)
+
+        if args.splunk:
+            splunk = SplunkModule(client, splunk_password=args.password)
+            splunk.setup()
+
 
         ########################################
-        ###          Post Down Runners       ###
+        ###      Post UP Core Modules       ###
         ########################################
 
         ########################################
-        ###          Post Down Modules       ###
+        ###       Post UP Core Modules       ###
         ########################################
 
-        if splunk and splunk.is_ready() and not splunk.setup_complete:
-            print("[*] Creating Splunk indexes and parsing data")
-            splunk.post_setup()
+        # IF this is a docker based system
+        # attack/target Setup systems
+        for system_config in config:
+            try:
+                status_str = "[*] Starting servers for : %s - %s"
+                print(status_str % (system_config["name"],
+                                    system_config["settings"]["description"]))
+                #TODO: if zeek is disabled, the docker class should not generate pcaps
 
-    ########################################
-    ###       Pre Down Core Runners      ###
-    ########################################
+                #TODO: is there a generic way to add optional config fields???
+                delay=0
+                if "target_delay" in system_config["settings"]:
+                    delay=int(system_config["settings"]["target_delay"])
+                msf_options=""
+                if "exploit_options" in system_config["settings"]:
+                    msf_options=system_config["settings"]["exploit_options"]
+                setc = None
+                setc_type = None
+                if "yml_file" in system_config["settings"]:
+                    setc = DockerComposeMsfCli(client,
+                                               vuln_name=system_config["name"],
+                                               target_name=system_config["settings"]["target_name"],
+                                               target_yml=system_config["settings"]["yml_file"],
+                                               msf_exploit=system_config["settings"]["exploit"],
+                                               msf_options=msf_options,
+                                               msf_image=args.msf)
+                    setc_type="compose"
+                else:
+                    setc = DockerMsfCli(client,
+                                        name = system_config["name"],
+                                        target_image=system_config["settings"]["target_image"],
+                                        msf_exploit=system_config["settings"]["exploit"],
+                                        msf_options=msf_options,
+                                        delay=delay,
+                                        msf_image=args.msf)
+                    setc_type="docker"
+                #Note: Trying the pattern match passing a different way to cut down on class arguments
+                if "exploit_success_pattern" in system_config["settings"]:
+                    setc.exploit_success_pattern=system_config["settings"]["exploit_success_pattern"]
 
-    ########################################
-    ###       Pre Down Core Modules      ###
-    ########################################
+                ########################################
+                ###          Pre UP Runners         ###
+                ########################################
 
-    ########################################
-    ###       Post Down Core Runners     ###
-    ########################################
+                ########################################
+                ###          Pre UP Modules         ###
+                ########################################
 
-    ########################################
-    ###       Post Down Core Modules     ###
-    ########################################
+                setc.setup_all()
 
-    if not args.no_zeek:
-        zeek.cleanup()
+                ########################################
+                ###          Post UP Runners         ###
+                ########################################
+
+                ########################################
+                ###          Post UP Modules         ###
+                ########################################
+                if tp:
+                    if setc_type == "docker":
+                        tp.post_up(setc.target, setc.target.name)
+                    else:
+                        #TODO: user docker client to pull the instance by name
+                        target = client.containers.get(system_config["settings"]["target_name"])
+                        tp.post_up(target, system_config["name"])
+
+                tries = 0
+                while not setc.ready_to_exploit():
+                    if tries > 5:
+                        break
+                    tries += 1
+                setc.exploit_until_success()
+
+                ########################################
+                ###          Pre Down Runners        ###
+                ########################################
+
+                ########################################
+                ###          Pre Down Modules        ###
+                ########################################
+                if tp:
+                    if setc_type == "docker":
+                        tp.pre_down(setc.target, setc.target.name)
+                    else:
+                        #TODO: user docker client to pull the instance by name
+                        target = client.containers.get(system_config["settings"]["target_name"])
+                        tp.pre_down(target, system_config["name"])
+
+
+                if not args.no_zeek:
+                    zeek.pcap_parse(system_config["name"])
+                    zeek.to_logstandard(system_config["name"])
+
+                setc.cleanup_all()
+
+                ########################################
+                ###          Post Down Runners       ###
+                ########################################
+
+                ########################################
+                ###          Post Down Modules       ###
+                ########################################
+
+                if splunk and splunk.is_ready() and not splunk.setup_complete:
+                    print("[*] Creating Splunk indexes and parsing data")
+                    splunk.post_setup()
+
+            except Exception as e:
+                print(f"[!] Error processing system {system_config['name']}: {e}")
+                print("[!] Continuing to next system...")
+                try:
+                    if setc:
+                        setc.cleanup_all()
+                except Exception:
+                    pass
+
+        ########################################
+        ###       Pre Down Core Runners      ###
+        ########################################
+
+        ########################################
+        ###       Pre Down Core Modules      ###
+        ########################################
+
+        ########################################
+        ###       Post Down Core Runners     ###
+        ########################################
+
+        ########################################
+        ###       Post Down Core Modules     ###
+        ########################################
+
+    finally:
+        if zeek:
+            zeek.cleanup()
+        if splunk:
+            splunk.cleanup()
 
 
 if __name__ == "__main__":

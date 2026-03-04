@@ -1,4 +1,6 @@
 import time
+import docker
+from utils import safe_stop_remove
 
 class BaseRunner:
     def __init__(self, docker_client, network_name="set_framework_net",
@@ -50,8 +52,7 @@ class BaseRunner:
         self.attack=dk_attack
 
     def attack_cleanup(self):
-        self.attack.stop()
-        self.attack.remove()
+        safe_stop_remove(self.attack, label="%s-attack" % self.target_name)
 
     def setup_all(self):
         self.network_setup()
@@ -82,7 +83,11 @@ class BaseRunner:
     def exploit_success(self, pattern=4444):
         #TODO: create config support for custom exploit estabilished pattern
         cmd = "netstat |grep %s |grep ESTABLISHED" % pattern
-        result = self.attack.exec_run(cmd=cmd, tty=True)
+        try:
+            result = self.attack.exec_run(cmd=cmd, tty=True)
+        except (docker.errors.NotFound, docker.errors.APIError) as e:
+            print(f"\n[!] Warning: could not check exploit status: {e}")
+            return False
         cmd_result = str(result.output)
         print('.', end="", flush=True)
         for line in cmd_result.splitlines():

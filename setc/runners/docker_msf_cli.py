@@ -1,5 +1,7 @@
 import time
+import docker
 from runners.base import BaseRunner
+from utils import safe_stop_remove
 
 class DockerMsfCli(BaseRunner):
     def __init__(self, docker_client, name="target", 
@@ -32,8 +34,7 @@ class DockerMsfCli(BaseRunner):
     def target_cleanup(self):
         if self.tcpdump:
             self.tcpdump_cleanup()
-        self.target.stop()
-        self.target.remove()
+        safe_stop_remove(self.target, label=self.name)
 
     def tcpdump_setup(self):
         cmd = "-U -v -w /data/%s/pcap/%s.pcap" % (self.name, self.name) #I shortened this and removed the pcap dir
@@ -44,8 +45,7 @@ class DockerMsfCli(BaseRunner):
         self.tcpdump=dk_tcpdump
 
     def tcpdump_cleanup(self):
-        self.tcpdump.stop()
-        self.tcpdump.remove()
+        safe_stop_remove(self.tcpdump, label="%s-tcpdump" % self.name)
 
     def ready_to_exploit(self):
         #TODO: add a delay and retries argument similar to exploit_intil_success
@@ -55,7 +55,11 @@ class DockerMsfCli(BaseRunner):
         else:
             print('.', end="", flush=True)
         #temp solution
-        logs = self.target.logs()
+        try:
+            logs = self.target.logs()
+        except (docker.errors.NotFound, docker.errors.APIError) as e:
+            print(f"\n[!] Warning: could not get target logs: {e}")
+            return False
         if self.target_logs == logs:
             print("\n[*] Target %s is ready for exploit" % self.name)
             return True

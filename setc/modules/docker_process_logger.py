@@ -4,6 +4,7 @@ import time
 import io
 import tarfile
 import shlex
+import docker
 
 #TODO: add hostnames to each log model
 #TODO: add a pre/post exploit field to each log model
@@ -134,7 +135,13 @@ class DockerProcessLogs:
 
 	def get_process_logs(self, read_container):
 		args = "o user,pid,ppid,pgid,sess,jobc,state,tt,time,etime,logname,%cpu,%mem,args"
-		raw_logs = read_container.top(ps_args=args)
+		try:
+			raw_logs = read_container.top(ps_args=args)
+		except (docker.errors.NotFound, docker.errors.APIError) as e:
+			print(f"[!] Warning: could not get process logs: {e}")
+			self.raw_logs = None
+			self.docker_logs = []
+			return
 		self.raw_logs=raw_logs
 		self.docker_logs=[dict(zip(raw_logs["Titles"],i)) for i in raw_logs["Processes"]]
 
@@ -178,12 +185,15 @@ class DockerProcessLogs:
 		self.cim=processes
 
 	def write_to_volume(self, log_type, directory):
-		tar_fileobj = io.BytesIO()	 
+		tar_fileobj = io.BytesIO()
 		with tarfile.open(fileobj=tar_fileobj, mode="w|") as tar:
 			my_content = json.dumps(getattr(self,log_type)).encode('utf-8')
 			tf = tarfile.TarInfo("%s_process_%s.log" % (log_type, str(time.time())))
 			tf.size = len(my_content)
-			tar.addfile(tf, io.BytesIO(my_content))  
+			tar.addfile(tf, io.BytesIO(my_content))
 		tar_fileobj.flush()
 		tar_fileobj.seek(0)
-		self.write_container.put_archive("/data/%s/%s" % (directory, log_type), tar_fileobj)
+		try:
+			self.write_container.put_archive("/data/%s/%s" % (directory, log_type), tar_fileobj)
+		except (docker.errors.NotFound, docker.errors.APIError) as e:
+			print(f"[!] Warning: failed to write {log_type} logs to volume: {e}")
