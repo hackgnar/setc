@@ -1,10 +1,14 @@
+import logging
+import os
+import time
+
 from python_on_whales import DockerClient
 from python_on_whales.exceptions import DockerException
-import time
 import docker
 from runners.base import BaseRunner
 from utils import safe_stop_remove
-import os
+
+logger = logging.getLogger(__name__)
 """
 A config will have the following:
 - client - for interacting with network and volume
@@ -65,7 +69,7 @@ class DockerComposeMsfCli(BaseRunner):
             self.wdocker.compose.stop()
             self.wdocker.compose.rm()
         except DockerException as e:
-            print(f"[!] Warning: failed to stop/remove compose services: {e}")
+            logger.warning("Failed to stop/remove compose services: %s", e)
 
     def tcpdump_setup(self):
         tcpdump_instances = []
@@ -88,19 +92,20 @@ class DockerComposeMsfCli(BaseRunner):
     def ready_to_exploit(self):
          #TODO: add a delay and retries argument similar to exploit_intil_success
         if self.target_logs == None:
-            print("[*] Checking if target %s is setup" % self.target_name, end="",
-                  flush=True)
+            logger.debug("Checking if target %s is setup", self.target_name)
         else:
-            print('.', end="", flush=True)
+            self._progress_dot()
         #temp solution
         try:
             target = self.client.containers.get(self.target_name)
             logs = target.logs()
         except (docker.errors.NotFound, docker.errors.APIError) as e:
-            print(f"\n[!] Warning: could not get target logs: {e}")
+            self._progress_end()
+            logger.warning("Could not get target logs: %s", e)
             return False
         if self.target_logs == logs:
-            print("\n[*] Target %s is ready for exploit" % self.target_name)
+            self._progress_end()
+            logger.info("Target %s is ready for exploit", self.target_name)
             return True
         else:
             self.target_logs = logs

@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 import time
 import io
 import tarfile
 import shlex
 import docker
+
+logger = logging.getLogger(__name__)
 
 #TODO: add hostnames to each log model
 #TODO: add a pre/post exploit field to each log model
@@ -138,7 +141,7 @@ class DockerProcessLogs:
 		try:
 			raw_logs = read_container.top(ps_args=args)
 		except (docker.errors.NotFound, docker.errors.APIError) as e:
-			print(f"[!] Warning: could not get process logs: {e}")
+			logger.warning("Could not get process logs: %s", e)
 			self.raw_logs = None
 			self.docker_logs = []
 			return
@@ -196,4 +199,4 @@ class DockerProcessLogs:
 		try:
 			self.write_container.put_archive("/data/%s/%s" % (directory, log_type), tar_fileobj)
 		except (docker.errors.NotFound, docker.errors.APIError) as e:
-			print(f"[!] Warning: failed to write {log_type} logs to volume: {e}")
+			logger.warning("Failed to write %s logs to volume: %s", log_type, e)

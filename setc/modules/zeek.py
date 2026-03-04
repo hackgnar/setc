@@ -1,5 +1,10 @@
+import logging
+
 import docker
 from utils import safe_stop_remove
+
+logger = logging.getLogger(__name__)
+
 
 class ZeekModule:
     def __init__(self, docker_client, volume_name="set_logs",
@@ -24,9 +29,9 @@ class ZeekModule:
             try:
                 result = self.zeek.exec_run(cmd=cmd)
                 if result.exit_code != 0:
-                    print("[!] Warning: failed to create directory /data/%s/%s: %s" % (name, subdir, result.output))
+                    logger.warning("Failed to create directory /data/%s/%s: %s", name, subdir, result.output)
             except (docker.errors.NotFound, docker.errors.APIError) as e:
-                print(f"[!] Warning: could not create log directory: {e}")
+                logger.warning("Could not create log directory: %s", e)
 
     def pcap_parse(self, name):
         cmd = ["/usr/local/zeek/bin/zeek", "-C", "-r",
@@ -36,9 +41,9 @@ class ZeekModule:
         try:
             result = self.zeek.exec_run(cmd=cmd, tty=True)
             if result.exit_code != 0:
-                print("[!] Warning: zeek pcap parsing failed for %s: %s" % (name, result.output))
+                logger.warning("Zeek pcap parsing failed for %s: %s", name, result.output)
         except (docker.errors.NotFound, docker.errors.APIError) as e:
-            print(f"[!] Warning: could not parse pcap: {e}")
+            logger.warning("Could not parse pcap: %s", e)
 
     def cleanup(self):
         safe_stop_remove(self.zeek, label="zeek")
@@ -51,4 +56,4 @@ class ZeekModule:
                                                  volumes={"set_logs":{'bind':'/data', 'mode':'rw'}})
             safe_stop_remove(dk_logformat, label="logformat")
         except docker.errors.APIError as e:
-            print(f"[!] Warning: log format conversion failed for {name}: {e}")
+            logger.warning("Log format conversion failed for %s: %s", name, e)

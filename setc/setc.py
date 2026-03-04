@@ -1,5 +1,6 @@
 import docker
 import argparse
+import logging
 import time
 import json
 from runners.docker_msf_cli import DockerMsfCli
@@ -76,8 +77,35 @@ BANNER = r"""
 """
 
 
+logger = logging.getLogger(__name__)
+
+
+class _ColorFormatter(logging.Formatter):
+    COLORS = {
+        logging.DEBUG:    "\033[36m🔍 DEBUG\033[0m",    # cyan
+        logging.INFO:     "\033[32m✅ INFO\033[0m",      # green
+        logging.WARNING:  "\033[33m⚠️  WARN\033[0m",     # yellow
+        logging.ERROR:    "\033[31m❌ ERROR\033[0m",     # red
+        logging.CRITICAL: "\033[1;31m💀 CRIT\033[0m",   # bold red
+    }
+
+    def format(self, record):
+        label = self.COLORS.get(record.levelno, record.levelname)
+        ts = self.formatTime(record, self.datefmt)
+        return f"\033[2m{ts}\033[0m {label}  {record.getMessage()}"
+
+
 def main():
     args, config = parse_args()
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(_ColorFormatter())
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        handlers=[handler],
+    )
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("docker").setLevel(logging.WARNING)
 
     print(BANNER)
 
@@ -85,8 +113,8 @@ def main():
     try:
         client = docker.from_env()
     except docker.errors.DockerException as e:
-        print("[!] Failed to connect to Docker. Is Docker running?")
-        print(f"[!] Error: {e}")
+        logger.error("Failed to connect to Docker. Is Docker running?")
+        logger.error("Error: %s", e)
         return
 
     zeek = None
@@ -99,16 +127,14 @@ def main():
 
         # Volume & Network cleanup
         if args.cleanup_network:
-            if args.verbose:
-                print("[i] Cleaning up old SETC networks")
+            logger.debug("Cleaning up old SETC networks")
             networks = [i.name for i in client.networks.list()]
             if args.network in networks:
                 net = client.networks.get(args.network)
                 net.remove()
 
         if args.cleanup_volume:
-            if args.verbose:
-                print("[i] Cleaning up old SETC volumes")
+            logger.debug("Cleaning up old SETC volumes")
             vols = [i.name for i in client.volumes.list()]
             if args.volume in vols:
                 vol = client.volumes.get(args.volume)
@@ -155,9 +181,9 @@ def main():
         # attack/target Setup systems
         for system_config in config:
             try:
-                status_str = "[*] Starting servers for : %s - %s"
-                print(status_str % (system_config["name"],
-                                    system_config["settings"]["description"]))
+                logger.info("Starting servers for: %s - %s",
+                            system_config["name"],
+                            system_config["settings"]["description"])
                 #TODO: if zeek is disabled, the docker class should not generate pcaps
 
                 #TODO: is there a generic way to add optional config fields???
@@ -254,12 +280,12 @@ def main():
                 ########################################
 
                 if splunk and splunk.is_ready() and not splunk.setup_complete:
-                    print("[*] Creating Splunk indexes and parsing data")
+                    logger.info("Creating Splunk indexes and parsing data")
                     splunk.post_setup()
 
             except Exception as e:
-                print(f"[!] Error processing system {system_config['name']}: {e}")
-                print("[!] Continuing to next system...")
+                logger.error("Error processing system %s: %s", system_config['name'], e)
+                logger.warning("Continuing to next system...")
                 try:
                     if setc:
                         setc.cleanup_all()

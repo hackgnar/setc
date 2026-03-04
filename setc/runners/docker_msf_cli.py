@@ -1,7 +1,10 @@
+import logging
 import time
 import docker
 from runners.base import BaseRunner
 from utils import safe_stop_remove
+
+logger = logging.getLogger(__name__)
 
 class DockerMsfCli(BaseRunner):
     def __init__(self, docker_client, name="target", 
@@ -23,7 +26,7 @@ class DockerMsfCli(BaseRunner):
         self.msf_image= msf_image 
         
     def target_setup(self):
-        print("[*] Starting vulnerable target %s" % self.name)
+        logger.debug("Starting vulnerable target %s", self.name)
         #tcpdump setup should happen automaticly after target setup
         dk_target = self.client.containers.run(self.target_image,
                                   detach=True, name=self.name,
@@ -50,18 +53,19 @@ class DockerMsfCli(BaseRunner):
     def ready_to_exploit(self):
         #TODO: add a delay and retries argument similar to exploit_intil_success
         if self.target_logs == None:
-            print("[*] Checking if target %s is setup" % self.name, end="",
-                  flush=True)
+            logger.debug("Checking if target %s is setup", self.name)
         else:
-            print('.', end="", flush=True)
+            self._progress_dot()
         #temp solution
         try:
             logs = self.target.logs()
         except (docker.errors.NotFound, docker.errors.APIError) as e:
-            print(f"\n[!] Warning: could not get target logs: {e}")
+            self._progress_end()
+            logger.warning("Could not get target logs: %s", e)
             return False
         if self.target_logs == logs:
-            print("\n[*] Target %s is ready for exploit" % self.name)
+            self._progress_end()
+            logger.info("Target %s is ready for exploit", self.name)
             return True
         else:
             self.target_logs = logs

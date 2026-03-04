@@ -1,5 +1,10 @@
+import logging
+
 import docker
 from utils import safe_stop_remove
+
+logger = logging.getLogger(__name__)
+
 
 class SplunkModule:
     def __init__(self, docker_client, volume_name="set_logs",
@@ -41,9 +46,9 @@ class SplunkModule:
             try:
                 result = self.splunk.exec_run(cmd=cmd, user="splunk", tty=True, detach=False)
                 if result.exit_code != 0:
-                    print("[!] Warning: splunk command failed: %s" % " ".join(cmd).split("-auth")[0].strip())
+                    logger.warning("Splunk command failed: %s", " ".join(cmd).split("-auth")[0].strip())
             except (docker.errors.NotFound, docker.errors.APIError) as e:
-                print(f"[!] Warning: splunk exec failed: {e}")
+                logger.warning("Splunk exec failed: %s", e)
         self.setup_complete=True
 
     def cleanup(self):

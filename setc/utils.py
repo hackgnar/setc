@@ -1,4 +1,8 @@
+import logging
+
 import docker
+
+logger = logging.getLogger(__name__)
 
 
 def safe_stop_remove(container, label="container"):
@@ -8,10 +12,10 @@ def safe_stop_remove(container, label="container"):
     except docker.errors.NotFound:
         pass
     except docker.errors.APIError as e:
-        print(f"[!] Warning: failed to stop {label}: {e}")
+        logger.warning("Failed to stop %s: %s", label, e)
     try:
         container.remove()
     except docker.errors.NotFound:
         pass
     except docker.errors.APIError as e:
-        print(f"[!] Warning: failed to remove {label}: {e}")
+        logger.warning("Failed to remove %s: %s", label, e)
