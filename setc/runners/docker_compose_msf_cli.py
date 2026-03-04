@@ -22,20 +22,36 @@ class DockerComposeMsfCli(BaseRunner):
                  msf_image="metasploitframework/metasploit-framework:6.2.33"):
         super().__init__(docker_client, network_name, volume_name)
         self.vuln_name = vuln_name
-        self.target_yml=os.path.expandvars(target_yml)
+        self.target_yml = self._expand_and_validate(target_yml, "yml_file")
         self.target_name=target_name
         self.msf_exploit=msf_exploit
         self.msf_options=msf_options
         self.delay=delay
-        self.msf_image=msf_image 
+        self.msf_image=msf_image
 
-        self.setc_yml = os.path.expandvars("$SETC_PATH/example_configurations/setc-net_docker-compose.yml")
+        self.setc_yml = self._expand_and_validate(
+            "$SETC_PATH/example_configurations/setc-net_docker-compose.yml", "SETC_PATH")
         self.wdocker = None
         self.tcpdump_instances = []
         self.attack=None
         self.target_logs=None
 
  
+    @staticmethod
+    def _expand_and_validate(path, label):
+        expanded = os.path.expandvars(path)
+        if "$" in expanded:
+            unset = [tok for tok in expanded.split(os.sep) if tok.startswith("$")]
+            raise EnvironmentError(
+                f"Environment variable(s) not set for {label}: {', '.join(unset)}. "
+                f"Path after expansion: {expanded}"
+            )
+        if not os.path.exists(expanded):
+            raise FileNotFoundError(
+                f"Path does not exist for {label}: {expanded}"
+            )
+        return expanded
+
     def target_setup(self):
         wdocker = DockerClient(compose_project_name="setc", compose_files=[self.target_yml, self.setc_yml])
         wdocker.compose.build()
