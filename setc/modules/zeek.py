@@ -29,13 +29,10 @@ class ZeekModule:
                 print(f"[!] Warning: could not create log directory: {e}")
 
     def pcap_parse(self, name):
-        bash_cmd = """
-        /usr/local/zeek/bin/zeek -C -r \
-        /data/{0}/pcap/{0}.pcap \
-        Log::default_logdir=/data/{0}/zeek \
-        LogAscii::use_json=T"""
-        bash_cmd = bash_cmd.format(name)
-        cmd = ["/bin/bash", "-c", bash_cmd]
+        cmd = ["/usr/local/zeek/bin/zeek", "-C", "-r",
+               f"/data/{name}/pcap/{name}.pcap",
+               f"Log::default_logdir=/data/{name}/zeek",
+               "LogAscii::use_json=T"]
         try:
             result = self.zeek.exec_run(cmd=cmd, tty=True)
             if result.exit_code != 0:
@@ -47,8 +44,7 @@ class ZeekModule:
         safe_stop_remove(self.zeek, label="zeek")
 
     def to_logstandard(self, name):
-        cmd = "/data/{0}/zeek /data/{0}"
-        cmd = cmd.format(name)
+        cmd = [f"/data/{name}/zeek", f"/data/{name}"]
         try:
             dk_logformat = self.client.containers.run("logformat", detach=True,
                                                  command=cmd, name="logformat",

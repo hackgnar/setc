@@ -37,7 +37,7 @@ class DockerMsfCli(BaseRunner):
         safe_stop_remove(self.target, label=self.name)
 
     def tcpdump_setup(self):
-        cmd = "-U -v -w /data/%s/pcap/%s.pcap" % (self.name, self.name) #I shortened this and removed the pcap dir
+        cmd = ["-U", "-v", "-w", f"/data/{self.name}/pcap/{self.name}.pcap"]
         dk_tcpdump = self.client.containers.run("tcpdump",command=cmd, detach=True,
                                   name="%s-tcpdump" % self.name, privileged=True,
                                   network="container:%s" % self.name, #TODO: this should be derived from self.target.name

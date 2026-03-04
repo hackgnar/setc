@@ -57,7 +57,7 @@ class DockerComposeMsfCli(BaseRunner):
             #TODO: parse pcaps for all compose instances. For now, we are only parsing the target instance
             if i.name == self.target_name:
                 #TODO: fix this with named arguments
-                cmd = "-U -v -w /data/%s/pcap/%s.pcap" % (self.vuln_name, self.vuln_name)
+                cmd = ["-U", "-v", "-w", f"/data/{self.vuln_name}/pcap/{self.vuln_name}.pcap"]
                 dk_tcpdump = self.client.containers.run("tcpdump",command=cmd, detach=True,
                                   name="%s-tcpdump" % self.target_name, privileged=True,
                                   network="container:%s" % self.target_name, #TODO: this should be derived from self.target.name

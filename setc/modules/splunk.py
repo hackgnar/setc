@@ -26,21 +26,22 @@ class SplunkModule:
         return self.finished in str(self.splunk.logs())
 
     def post_setup(self):
+        auth = f"admin:{self.password}"
         commands = [
-            "./bin/splunk add index zeek -auth 'admin:{}'".format(self.password),
-            "./bin/splunk add index cim -auth 'admin:{}'".format(self.password),
-            "./bin/splunk add index ecs -auth 'admin:{}'".format(self.password),
-            "./bin/splunk add index ocsf -auth 'admin:{}'".format(self.password),
-            """./bin/splunk add monitor "/data/*/zeek/*" -index zeek -auth admin:{} -sourcetype _json""".format(self.password),
-            """./bin/splunk add monitor "/data/*/cim/*" -index cim -auth admin:{} -sourcetype _json""".format(self.password),
-            """./bin/splunk add monitor "/data/*/ocsf/*" -index ocsf -auth admin:{} -sourcetype _json""".format(self.password),
-            """./bin/splunk add monitor "/data/*/ecs/*" -index ecs -auth admin:{} -sourcetype _json""".format(self.password),
+            ["./bin/splunk", "add", "index", "zeek", "-auth", auth],
+            ["./bin/splunk", "add", "index", "cim", "-auth", auth],
+            ["./bin/splunk", "add", "index", "ecs", "-auth", auth],
+            ["./bin/splunk", "add", "index", "ocsf", "-auth", auth],
+            ["./bin/splunk", "add", "monitor", "/data/*/zeek/*", "-index", "zeek", "-auth", auth, "-sourcetype", "_json"],
+            ["./bin/splunk", "add", "monitor", "/data/*/cim/*", "-index", "cim", "-auth", auth, "-sourcetype", "_json"],
+            ["./bin/splunk", "add", "monitor", "/data/*/ocsf/*", "-index", "ocsf", "-auth", auth, "-sourcetype", "_json"],
+            ["./bin/splunk", "add", "monitor", "/data/*/ecs/*", "-index", "ecs", "-auth", auth, "-sourcetype", "_json"],
         ]
         for cmd in commands:
             try:
                 result = self.splunk.exec_run(cmd=cmd, user="splunk", tty=True, detach=False)
                 if result.exit_code != 0:
-                    print("[!] Warning: splunk command failed: %s" % cmd.split("-auth")[0].strip())
+                    print("[!] Warning: splunk command failed: %s" % " ".join(cmd).split("-auth")[0].strip())
             except (docker.errors.NotFound, docker.errors.APIError) as e:
                 print(f"[!] Warning: splunk exec failed: {e}")
         self.setup_complete=True

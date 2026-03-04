@@ -1,3 +1,4 @@
+import shlex
 import time
 import docker
 from utils import safe_stop_remove
@@ -82,7 +83,7 @@ class BaseRunner:
 
     def exploit_success(self, pattern=4444):
         #TODO: create config support for custom exploit estabilished pattern
-        cmd = "netstat |grep %s |grep ESTABLISHED" % pattern
+        cmd = ["sh", "-c", f"netstat | grep {shlex.quote(str(pattern))} | grep ESTABLISHED"]
         try:
             result = self.attack.exec_run(cmd=cmd, tty=True)
         except (docker.errors.NotFound, docker.errors.APIError) as e:
