@@ -125,7 +125,7 @@ example run:
 ```
 export VULN_PATH=/path_to_vuln_images/vulhub
 export SETC_PATH=/path_to_setc/setc
-python setc.py ../example_configurations/compose_small.yml
+python3 setc.py ../example_configurations/compose_small.json
 ```
 
 ### SETC Demo Video
