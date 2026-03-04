@@ -10,6 +10,74 @@ from modules.splunk import SplunkModule
 from modules.docker_process_logger import DockerProcessLogs
 
 
+def validate_config(config):
+    errors = []
+
+    if not isinstance(config, list) or len(config) == 0:
+        return ["Config must be a non-empty JSON array of objects."]
+
+    for i, entry in enumerate(config):
+        prefix = f"Entry {i + 1}"
+
+        if not isinstance(entry, dict):
+            errors.append(f"{prefix}: must be a JSON object, got {type(entry).__name__}.")
+            continue
+
+        if "name" not in entry:
+            errors.append(f"{prefix}: missing required field 'name'.")
+        elif not isinstance(entry["name"], str):
+            errors.append(f"{prefix}: 'name' must be a string.")
+        else:
+            prefix = f"Entry {i + 1} ('{entry['name']}')"
+
+        if "settings" not in entry:
+            errors.append(f"{prefix}: missing required field 'settings'.")
+            continue
+        if not isinstance(entry["settings"], dict):
+            errors.append(f"{prefix}: 'settings' must be a JSON object.")
+            continue
+
+        s = entry["settings"]
+
+        # Required string fields
+        for field in ("description", "exploit"):
+            if field not in s:
+                errors.append(f"{prefix}: missing required setting '{field}'.")
+            elif not isinstance(s[field], str):
+                errors.append(f"{prefix}: setting '{field}' must be a string.")
+
+        # Exactly one of target_image or yml_file
+        has_image = "target_image" in s
+        has_yml = "yml_file" in s
+        if has_image and has_yml:
+            errors.append(f"{prefix}: specify only one of 'target_image' or 'yml_file', not both.")
+        elif not has_image and not has_yml:
+            errors.append(f"{prefix}: must specify either 'target_image' or 'yml_file'.")
+        else:
+            if has_image and not isinstance(s["target_image"], str):
+                errors.append(f"{prefix}: 'target_image' must be a string.")
+            if has_yml:
+                if not isinstance(s["yml_file"], str):
+                    errors.append(f"{prefix}: 'yml_file' must be a string.")
+                if "target_name" not in s:
+                    errors.append(f"{prefix}: 'target_name' is required when 'yml_file' is used.")
+                elif not isinstance(s["target_name"], str):
+                    errors.append(f"{prefix}: 'target_name' must be a string.")
+
+        # Optional fields — type-check only if present
+        if "target_delay" in s:
+            try:
+                int(s["target_delay"])
+            except (ValueError, TypeError):
+                errors.append(f"{prefix}: 'target_delay' must be convertible to an integer.")
+
+        for field in ("exploit_options", "exploit_success_pattern"):
+            if field in s and not isinstance(s[field], str):
+                errors.append(f"{prefix}: '{field}' must be a string.")
+
+    return errors
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         prog="setc",
@@ -61,6 +129,10 @@ def parse_args():
         parser.error(f"Configuration file not found: {args.config}")
     except json.JSONDecodeError as e:
         parser.error(f"Invalid JSON in configuration file: {e}")
+
+    config_errors = validate_config(config)
+    if config_errors:
+        parser.error("Configuration validation failed:\n  " + "\n  ".join(config_errors))
 
     return args, config
 
