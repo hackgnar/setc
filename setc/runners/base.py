@@ -2,13 +2,14 @@ import logging
 import shlex
 import sys
 import time
+from abc import ABC, abstractmethod
 import docker
 from utils import safe_stop_remove
 
 logger = logging.getLogger(__name__)
 
 
-class BaseRunner:
+class BaseRunner(ABC):
     def __init__(self, docker_client, network_name="set_framework_net",
                  volume_name="set_logs", target_name="target", 
                  msf_image="metasploitframework/metasploit-framework:6.2.33"):
@@ -37,9 +38,11 @@ class BaseRunner:
             vol = self.client.volumes.create(name=self.volume)
         return vol
 
+    @abstractmethod
     def target_setup(self):
         pass
 
+    @abstractmethod
     def target_cleanup(self):
         pass
 
@@ -53,9 +56,11 @@ class BaseRunner:
         sys.stderr.write("\n")
         sys.stderr.flush()
 
+    @abstractmethod
     def tcpdump_setup(self):
         pass
 
+    @abstractmethod
     def tcpdump_cleanup(self):
         pass
 
@@ -124,5 +129,6 @@ class BaseRunner:
         logger.warning("Exploit failed or status unknown")
         return False
 
+    @abstractmethod
     def ready_to_exploit(self):
         pass
