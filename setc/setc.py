@@ -129,6 +129,9 @@ def parse_args() -> tuple[argparse.Namespace, list[dict[str, Any]]]:
     cleanup_group.add_argument("--cleanup_volume",
                                help="Delete the SETC docker log volume before running.",
                                action='store_true')
+    cleanup_group.add_argument("--cleanup_splunk",
+                               help="Remove the Splunk container after SETC completes instead of leaving it running.",
+                               action='store_true')
 
     args = parser.parse_args()
 
@@ -411,7 +414,7 @@ def main() -> None:
         if zeek:
             zeek.cleanup()
         if splunk:
-            splunk.cleanup()
+            splunk.cleanup(remove=args.cleanup_splunk)
 
 
 if __name__ == "__main__":

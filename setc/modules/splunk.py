@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 import docker
+import docker.models.containers
 from utils import prefixed_name
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,26 @@ class SplunkModule:
     def _prefixed(self, name: str) -> str:
         return prefixed_name(self.prefix, name)
 
+    def _find_existing(self) -> docker.models.containers.Container | None:
+        """Find a running Splunk container already mounted to our volume."""
+        for container in self.client.containers.list(all=True,
+                                                      filters={"ancestor": "splunk/splunk"}):
+            mounts = container.attrs.get("Mounts", [])
+            for m in mounts:
+                if m.get("Name") == self.volume:
+                    if container.status != "running":
+                        logger.info("Starting stopped Splunk container: %s", container.name)
+                        container.start()
+                    return container
+        return None
+
     def setup(self) -> None:
+        existing = self._find_existing()
+        if existing:
+            logger.info("Reusing existing Splunk container: %s", existing.name)
+            self.splunk = existing
+            self.setup_complete = True
+            return
         dk_splunk = self.client.containers.run("splunk/splunk", detach=True,
                                           name=self._prefixed("splunk"),
                                           volumes={self.volume:{'bind':'/data', 'mode':'rw'}},
@@ -59,6 +79,14 @@ class SplunkModule:
                 logger.warning("Splunk exec failed: %s", e)
         self.setup_complete=True
 
-    def cleanup(self) -> None:
-        # Splunk is intentionally left running so users can analyze data after SETC completes
-        pass
+    def cleanup(self, remove: bool = False) -> None:
+        if self.splunk:
+            if remove:
+                try:
+                    self.splunk.stop()
+                    self.splunk.remove()
+                    logger.info("Splunk container removed")
+                except (docker.errors.NotFound, docker.errors.APIError) as e:
+                    logger.warning("Could not remove Splunk container: %s", e)
+            else:
+                logger.info("Splunk available at http://localhost:8000 (user: admin)")
