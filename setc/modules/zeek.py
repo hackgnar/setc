@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 
 import docker
@@ -7,21 +9,21 @@ logger = logging.getLogger(__name__)
 
 
 class ZeekModule:
-    def __init__(self, docker_client, volume_name="set_logs",
-                 network_name="set_framework_net"):
+    def __init__(self, docker_client: docker.DockerClient, volume_name: str = "set_logs",
+                 network_name: str = "set_framework_net") -> None:
         self.client=docker_client
         self.volume=volume_name
         self.network=network_name
         self.zeek = None
 
-    def setup(self):
+    def setup(self) -> None:
         dk_zeek = self.client.containers.run("zeek/zeek", command="/bin/bash",
                                         detach=True, name="zeek",tty=True,
                                         network=self.network,
                                         volumes={self.volume:{'bind':'/data', 'mode':'rw'}})
         self.zeek = dk_zeek
 
-    def create_log_directories(self, name):
+    def create_log_directories(self, name: str) -> None:
         #cmd = ["mkdir","-p","/data/%s/\\{pcap, zeek, cim, ocsf, cef\\}" % name]
         #self.zeek.exec_run(cmd=cmd)
         for subdir in ["pcap", "zeek", "cim", "ocsf", "ecs"]:
@@ -33,7 +35,7 @@ class ZeekModule:
             except (docker.errors.NotFound, docker.errors.APIError) as e:
                 logger.warning("Could not create log directory: %s", e)
 
-    def pcap_parse(self, name):
+    def pcap_parse(self, name: str) -> None:
         cmd = ["/usr/local/zeek/bin/zeek", "-C", "-r",
                f"/data/{name}/pcap/{name}.pcap",
                f"Log::default_logdir=/data/{name}/zeek",
@@ -45,10 +47,10 @@ class ZeekModule:
         except (docker.errors.NotFound, docker.errors.APIError) as e:
             logger.warning("Could not parse pcap: %s", e)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         safe_stop_remove(self.zeek, label="zeek")
 
-    def to_logstandard(self, name):
+    def to_logstandard(self, name: str) -> None:
         cmd = [f"/data/{name}/zeek", f"/data/{name}"]
         try:
             dk_logformat = self.client.containers.run("logformat", detach=True,

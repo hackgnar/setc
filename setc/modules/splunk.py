@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 
 import docker
@@ -6,8 +8,8 @@ logger = logging.getLogger(__name__)
 
 
 class SplunkModule:
-    def __init__(self, docker_client, volume_name="set_logs",
-                 network_name="set_framework_net", splunk_password="password1234"):
+    def __init__(self, docker_client: docker.DockerClient, volume_name: str = "set_logs",
+                 network_name: str = "set_framework_net", splunk_password: str = "password1234") -> None:
         self.client=docker_client
         self.volume=volume_name
         self.network=network_name
@@ -16,7 +18,7 @@ class SplunkModule:
         self.password=splunk_password
         self.setup_complete=False
 
-    def setup(self):
+    def setup(self) -> None:
         dk_splunk = self.client.containers.run("splunk/splunk", detach=True,
                                           name="splunk",
                                           volumes={"set_logs":{'bind':'/data', 'mode':'rw'}},
@@ -27,10 +29,10 @@ class SplunkModule:
                                           platform="linux/amd64")
         self.splunk = dk_splunk
 
-    def is_ready(self):
+    def is_ready(self) -> bool:
         return self.finished in str(self.splunk.logs())
 
-    def post_setup(self):
+    def post_setup(self) -> None:
         auth = f"admin:{self.password}"
         commands = [
             ["./bin/splunk", "add", "index", "zeek", "-auth", auth],
@@ -51,6 +53,6 @@ class SplunkModule:
                 logger.warning("Splunk exec failed: %s", e)
         self.setup_complete=True
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         # Splunk is intentionally left running so users can analyze data after SETC completes
         pass

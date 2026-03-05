@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import docker
 import argparse
 import logging
 import time
 import json
+from typing import Any
 from runners.docker_msf_cli import DockerMsfCli
 from runners.docker_compose_msf_cli import DockerComposeMsfCli
 from modules.zeek import ZeekModule
@@ -10,7 +13,7 @@ from modules.splunk import SplunkModule
 from modules.docker_process_logger import DockerProcessLogs
 
 
-def validate_config(config):
+def validate_config(config: Any) -> list[str]:
     errors = []
 
     if not isinstance(config, list) or len(config) == 0:
@@ -78,7 +81,7 @@ def validate_config(config):
     return errors
 
 
-def parse_args():
+def parse_args() -> tuple[argparse.Namespace, list[dict[str, Any]]]:
     parser = argparse.ArgumentParser(
         prog="setc",
         description="Security Event Traffic Creator - generate realistic attack traffic and logs for security testing.",
@@ -167,7 +170,7 @@ class _ColorFormatter(logging.Formatter):
         return f"\033[2m{ts}\033[0m {label}  {record.getMessage()}"
 
 
-def main():
+def main() -> None:
     args, config = parse_args()
 
     handler = logging.StreamHandler()

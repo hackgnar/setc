@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 import logging
 import os
 
+import docker
+import docker.models.containers
 from python_on_whales import DockerClient
 from python_on_whales.exceptions import DockerException
 from runners.base import BaseRunner
@@ -18,10 +22,10 @@ A config will have the following:
 
 
 class DockerComposeMsfCli(BaseRunner):
-    def __init__(self, docker_client, vuln_name="", target_name="target", 
-                 network_name="set_framework_net", volume_name="set_logs", 
-                 target_yml="", msf_exploit="", msf_options="", delay=0,
-                 msf_image="metasploitframework/metasploit-framework:6.2.33"):
+    def __init__(self, docker_client: docker.DockerClient, vuln_name: str = "", target_name: str = "target",
+                 network_name: str = "set_framework_net", volume_name: str = "set_logs",
+                 target_yml: str = "", msf_exploit: str = "", msf_options: str = "", delay: int = 0,
+                 msf_image: str = "metasploitframework/metasploit-framework:6.2.33") -> None:
         super().__init__(docker_client, network_name, volume_name)
         self.vuln_name = vuln_name
         self.target_yml = self._expand_and_validate(target_yml, "yml_file")
@@ -39,7 +43,7 @@ class DockerComposeMsfCli(BaseRunner):
 
  
     @staticmethod
-    def _expand_and_validate(path, label):
+    def _expand_and_validate(path: str, label: str) -> str:
         expanded = os.path.expandvars(path)
         if "$" in expanded:
             unset = [tok for tok in expanded.split(os.sep) if tok.startswith("$")]
@@ -53,13 +57,13 @@ class DockerComposeMsfCli(BaseRunner):
             )
         return expanded
 
-    def target_setup(self):
+    def target_setup(self) -> None:
         wdocker = DockerClient(compose_project_name="setc", compose_files=[self.target_yml, self.setc_yml])
         wdocker.compose.build()
         wdocker.compose.up(detach=True)
         self.wdocker = wdocker
 
-    def target_cleanup(self):
+    def target_cleanup(self) -> None:
         if self.tcpdump_instances:
             self.tcpdump_cleanup()
         try:
@@ -68,7 +72,7 @@ class DockerComposeMsfCli(BaseRunner):
         except DockerException as e:
             logger.warning("Failed to stop/remove compose services: %s", e)
 
-    def tcpdump_setup(self):
+    def tcpdump_setup(self) -> None:
         tcpdump_instances = []
         for i in self.wdocker.compose.ps():
             #TODO: parse pcaps for all compose instances. For now, we are only parsing the target instance
@@ -77,9 +81,9 @@ class DockerComposeMsfCli(BaseRunner):
                 tcpdump_instances.append(dk_tcpdump)
         self.tcpdump_instances = tcpdump_instances
 
-    def tcpdump_cleanup(self):
+    def tcpdump_cleanup(self) -> None:
         for instance in self.tcpdump_instances:
             safe_stop_remove(instance, label="tcpdump")
 
-    def _get_target_container(self):
+    def _get_target_container(self) -> docker.models.containers.Container:
         return self.client.containers.get(self.target_name)

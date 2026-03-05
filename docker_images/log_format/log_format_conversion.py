@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import json
 import time
 import urllib3
 import os
 import sys
+from typing import Any
 
 base_dir=sys.argv[1]
 output_dir=sys.argv[2]
 
-def apply_schema(log, schema):
+def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
     result = {}
     for field_name, mapping in schema.items():
         if isinstance(mapping, dict):
@@ -54,7 +57,7 @@ cim_http_from_zeek = {
     "storage_name": lambda x: None 
 }
 
-def ocsf_activity_id(method):
+def ocsf_activity_id(method: str) -> int:
     if method.lower() == "connect":
         return 1
     if method.lower() == "delete":
@@ -117,7 +120,7 @@ ocsf_http_from_zeek = {
     "type_name": lambda x: "HTTP Activity: "+x.get("method", "Unknown")
 }
 
-def zeek_to_ocsf(log):
+def zeek_to_ocsf(log: dict[str, Any]) -> dict[str, Any]:
     return apply_schema(log, ocsf_http_from_zeek)
 
 ecs_http_from_zeek = {
@@ -207,27 +210,27 @@ ocsf_network_from_zeek = {
   }
 }
 
-def zeek_to_network_ecs(log):
+def zeek_to_network_ecs(log: dict[str, Any]) -> dict[str, Any]:
     return apply_schema(log, ecs_network_from_zeek)
 
-def zeek_to_network_ocsf(log):
+def zeek_to_network_ocsf(log: dict[str, Any]) -> dict[str, Any]:
     return apply_schema(log, ocsf_network_from_zeek)
 
-def zeek_to_network_cim(log):
+def zeek_to_network_cim(log: dict[str, Any]) -> dict[str, Any]:
     return apply_schema(log, cim_network_from_zeek)
 
-def zeek_to_ecs(log):
+def zeek_to_ecs(log: dict[str, Any]) -> dict[str, Any]:
     return apply_schema(log, ecs_http_from_zeek)
 
 
-def find_all(name, path):
+def find_all(name: str, path: str) -> list[str]:
     result = []
     for root, dirs, files in os.walk(path):
         if name in files:
             result.append(os.path.join(root, name))
     return result
 
-def zeek_to_cim(log):
+def zeek_to_cim(log: dict[str, Any]) -> dict[str, Any]:
     return apply_schema(log, cim_http_from_zeek)
 
 if __name__ == "__main__":
