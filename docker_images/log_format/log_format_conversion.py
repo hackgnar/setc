@@ -173,7 +173,7 @@ ecs_network_from_zeek = {
     "source.packets": lambda x: x.get("orig_pkts", 0),
     "destination.packets": lambda x: x.get("resp_pkts", 0),
     "source.ip": lambda x: x.get("id.orig_h", 0),
-    "destination.ip": lambda x: x.get("id.orig_p", 0),
+    "source.port": lambda x: x.get("id.orig_p", 0),
     "network.protocol": lambda x: x.get("proto", "-")
 }
 
