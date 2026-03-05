@@ -7,6 +7,17 @@ import sys
 base_dir=sys.argv[1]
 output_dir=sys.argv[2]
 
+def apply_schema(log, schema):
+    result = {}
+    for field_name, mapping in schema.items():
+        if isinstance(mapping, dict):
+            value = apply_schema(log, mapping)
+        else:
+            value = mapping(log)
+        if value is not None:
+            result[field_name] = value
+    return result
+
 cim_http_from_zeek = {
     "timestamp": lambda x: x.get("ts", time.time()),
     "action": lambda x: "http", # required
@@ -106,16 +117,8 @@ ocsf_http_from_zeek = {
     "type_name": lambda x: "HTTP Activity: "+x.get("method", "Unknown")
 }
 
-def zeek_to_ocsf(log, schema=ocsf_http_from_zeek):
-    ocsf_log = {}
-    for field_name, mapping in schema.items():
-        if type(mapping) == dict:
-            ocsf_value = zeek_to_ocsf(log, schema=mapping)
-        else:
-            ocsf_value = mapping(log)
-        if ocsf_value != None:
-            ocsf_log[field_name] = ocsf_value
-    return ocsf_log
+def zeek_to_ocsf(log):
+    return apply_schema(log, ocsf_http_from_zeek)
 
 ecs_http_from_zeek = {
     "@timestamp":lambda x: x.get("ts", time.time()),
@@ -205,39 +208,16 @@ ocsf_network_from_zeek = {
 }
 
 def zeek_to_network_ecs(log):
-    ecs_log = {}
-    for field_name, mapping in ecs_network_from_zeek.items():
-        ecs_value = mapping(log)
-        if ecs_value != None:
-            ecs_log[field_name] = ecs_value
-    return ecs_log
+    return apply_schema(log, ecs_network_from_zeek)
 
-def zeek_to_network_ocsf(log, schema=ocsf_network_from_zeek):
-    ocsf_log = {}
-    for field_name, mapping in schema.items():
-        if type(mapping) == dict:
-            ocsf_value = zeek_to_network_ocsf(log, schema=mapping)
-        else:
-            ocsf_value = mapping(log)
-        if ocsf_value != None:
-            ocsf_log[field_name] = ocsf_value
-    return ocsf_log
+def zeek_to_network_ocsf(log):
+    return apply_schema(log, ocsf_network_from_zeek)
 
 def zeek_to_network_cim(log):
-    cim_log = {}
-    for field_name, mapping in cim_network_from_zeek.items():
-        cim_value = mapping(log)
-        if cim_value != None:
-            cim_log[field_name] = cim_value
-    return cim_log
+    return apply_schema(log, cim_network_from_zeek)
 
 def zeek_to_ecs(log):
-    ecs_log = {}
-    for field_name, mapping in ecs_http_from_zeek.items():
-        ecs_value = mapping(log)
-        if ecs_value != None:
-            ecs_log[field_name] = ecs_value
-    return ecs_log
+    return apply_schema(log, ecs_http_from_zeek)
 
 
 def find_all(name, path):
@@ -248,12 +228,7 @@ def find_all(name, path):
     return result
 
 def zeek_to_cim(log):
-    cim_log = {}
-    for field_name, mapping in cim_http_from_zeek.items():
-        cim_value = mapping(log)
-        if cim_value != None:
-            cim_log[field_name] = cim_value
-    return cim_log
+    return apply_schema(log, cim_http_from_zeek)
 
 if __name__ == "__main__":
     # HTTP
