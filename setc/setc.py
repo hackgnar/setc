@@ -183,7 +183,7 @@ def main():
 
     # framework setup
     try:
-        client = docker.from_env()
+        client = docker.from_env(timeout=300)
     except docker.errors.DockerException as e:
         logger.error("Failed to connect to Docker. Is Docker running?")
         logger.error("Error: %s", e)

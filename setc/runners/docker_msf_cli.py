@@ -1,6 +1,5 @@
 import logging
 import time
-import docker
 from runners.base import BaseRunner
 from utils import safe_stop_remove
 
@@ -20,7 +19,6 @@ class DockerMsfCli(BaseRunner):
         self.target_name=name
         self.target_image=target_image
         self.msf_exploit=msf_exploit
-        self.target_logs=None
         self.delay=delay
         self.msf_options=msf_options
         self.msf_image= msf_image 
@@ -40,34 +38,10 @@ class DockerMsfCli(BaseRunner):
         safe_stop_remove(self.target, label=self.name)
 
     def tcpdump_setup(self):
-        cmd = ["-U", "-v", "-w", f"/data/{self.name}/pcap/{self.name}.pcap"]
-        dk_tcpdump = self.client.containers.run("tcpdump",command=cmd, detach=True,
-                                  name="%s-tcpdump" % self.name, privileged=True,
-                                  network="container:%s" % self.name, #TODO: this should be derived from self.target.name
-                                  volumes={self.volume:{"bind":"/data","mode":'rw'}})
-        self.tcpdump=dk_tcpdump
+        self.tcpdump = self._run_tcpdump_container(self.name, self.name)
 
     def tcpdump_cleanup(self):
         safe_stop_remove(self.tcpdump, label="%s-tcpdump" % self.name)
 
-    def ready_to_exploit(self):
-        #TODO: add a delay and retries argument similar to exploit_intil_success
-        if self.target_logs == None:
-            logger.debug("Checking if target %s is setup", self.name)
-        else:
-            self._progress_dot()
-        #temp solution
-        try:
-            logs = self.target.logs()
-        except (docker.errors.NotFound, docker.errors.APIError) as e:
-            self._progress_end()
-            logger.warning("Could not get target logs: %s", e)
-            return False
-        if self.target_logs == logs:
-            self._progress_end()
-            logger.info("Target %s is ready for exploit", self.name)
-            return True
-        else:
-            self.target_logs = logs
-            time.sleep(5)
-        return False
+    def _get_target_container(self):
+        return self.target

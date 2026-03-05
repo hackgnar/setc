@@ -1,10 +1,8 @@
 import logging
 import os
-import time
 
 from python_on_whales import DockerClient
 from python_on_whales.exceptions import DockerException
-import docker
 from runners.base import BaseRunner
 from utils import safe_stop_remove
 
@@ -38,7 +36,6 @@ class DockerComposeMsfCli(BaseRunner):
         self.wdocker = None
         self.tcpdump_instances = []
         self.attack=None
-        self.target_logs=None
 
  
     @staticmethod
@@ -76,12 +73,7 @@ class DockerComposeMsfCli(BaseRunner):
         for i in self.wdocker.compose.ps():
             #TODO: parse pcaps for all compose instances. For now, we are only parsing the target instance
             if i.name == self.target_name:
-                #TODO: fix this with named arguments
-                cmd = ["-U", "-v", "-w", f"/data/{self.vuln_name}/pcap/{self.vuln_name}.pcap"]
-                dk_tcpdump = self.client.containers.run("tcpdump",command=cmd, detach=True,
-                                  name="%s-tcpdump" % self.target_name, privileged=True,
-                                  network="container:%s" % self.target_name, #TODO: this should be derived from self.target.name
-                                  volumes={self.volume:{"bind":"/data","mode":'rw'}})
+                dk_tcpdump = self._run_tcpdump_container(self.vuln_name, self.target_name)
                 tcpdump_instances.append(dk_tcpdump)
         self.tcpdump_instances = tcpdump_instances
 
@@ -89,25 +81,5 @@ class DockerComposeMsfCli(BaseRunner):
         for instance in self.tcpdump_instances:
             safe_stop_remove(instance, label="tcpdump")
 
-    def ready_to_exploit(self):
-         #TODO: add a delay and retries argument similar to exploit_intil_success
-        if self.target_logs == None:
-            logger.debug("Checking if target %s is setup", self.target_name)
-        else:
-            self._progress_dot()
-        #temp solution
-        try:
-            target = self.client.containers.get(self.target_name)
-            logs = target.logs()
-        except (docker.errors.NotFound, docker.errors.APIError) as e:
-            self._progress_end()
-            logger.warning("Could not get target logs: %s", e)
-            return False
-        if self.target_logs == logs:
-            self._progress_end()
-            logger.info("Target %s is ready for exploit", self.target_name)
-            return True
-        else:
-            self.target_logs = logs
-            time.sleep(5)
-        return False
+    def _get_target_container(self):
+        return self.client.containers.get(self.target_name)

@@ -19,6 +19,7 @@ class BaseRunner(ABC):
         self.msf_image=msf_image
         self.target_name=target_name
         self.exploit_success_pattern="4444"
+        self.target_logs=None
 
     def network_setup(self):
         net = None
@@ -55,6 +56,14 @@ class BaseRunner(ABC):
     def _progress_end():
         sys.stderr.write("\n")
         sys.stderr.flush()
+
+    def _run_tcpdump_container(self, pcap_name, attach_to):
+        cmd = ["-U", "-v", "-w", f"/data/{pcap_name}/pcap/{pcap_name}.pcap"]
+        return self.client.containers.run(
+            "tcpdump", command=cmd, detach=True,
+            name="%s-tcpdump" % attach_to, privileged=True,
+            network="container:%s" % attach_to,
+            volumes={self.volume: {"bind": "/data", "mode": "rw"}})
 
     @abstractmethod
     def tcpdump_setup(self):
@@ -130,5 +139,28 @@ class BaseRunner(ABC):
         return False
 
     @abstractmethod
-    def ready_to_exploit(self):
+    def _get_target_container(self):
         pass
+
+    def ready_to_exploit(self):
+        #TODO: add a delay and retries argument similar to exploit_until_success
+        if self.target_logs == None:
+            logger.debug("Checking if target %s is setup", self.target_name)
+        else:
+            self._progress_dot()
+        #temp solution
+        try:
+            target = self._get_target_container()
+            logs = target.logs()
+        except (docker.errors.NotFound, docker.errors.APIError) as e:
+            self._progress_end()
+            logger.warning("Could not get target logs: %s", e)
+            return False
+        if self.target_logs == logs:
+            self._progress_end()
+            logger.info("Target %s is ready for exploit", self.target_name)
+            return True
+        else:
+            self.target_logs = logs
+            time.sleep(5)
+        return False

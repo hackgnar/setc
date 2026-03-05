@@ -1,7 +1,6 @@
 import logging
 
 import docker
-from utils import safe_stop_remove
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +20,9 @@ class SplunkModule:
         dk_splunk = self.client.containers.run("splunk/splunk", detach=True,
                                           name="splunk",
                                           volumes={"set_logs":{'bind':'/data', 'mode':'rw'}},
-                                          ports={8000:8000}, tty=True,
+                                          ports={'8000/tcp':8000}, tty=True,
                                           environment=["SPLUNK_START_ARGS=--accept-license",
+                                                       "SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com",
                                                        "SPLUNK_PASSWORD={}".format(self.password)],
                                           platform="linux/amd64")
         self.splunk = dk_splunk
@@ -52,5 +52,5 @@ class SplunkModule:
         self.setup_complete=True
 
     def cleanup(self):
-        if self.splunk:
-            safe_stop_remove(self.splunk, label="splunk")
+        # Splunk is intentionally left running so users can analyze data after SETC completes
+        pass
