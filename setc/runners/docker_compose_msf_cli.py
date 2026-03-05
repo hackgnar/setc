@@ -25,8 +25,9 @@ class DockerComposeMsfCli(BaseRunner):
     def __init__(self, docker_client: docker.DockerClient, vuln_name: str = "", target_name: str = "target",
                  network_name: str = "set_framework_net", volume_name: str = "set_logs",
                  target_yml: str = "", msf_exploit: str = "", msf_options: str = "", delay: int = 0,
-                 msf_image: str = "metasploitframework/metasploit-framework:6.2.33") -> None:
-        super().__init__(docker_client, network_name, volume_name)
+                 msf_image: str = "metasploitframework/metasploit-framework:6.2.33",
+                 prefix: str = "") -> None:
+        super().__init__(docker_client, network_name, volume_name, prefix=prefix)
         self.vuln_name = vuln_name
         self.target_yml = self._expand_and_validate(target_yml, "yml_file")
         self.target_name=target_name
@@ -34,6 +35,7 @@ class DockerComposeMsfCli(BaseRunner):
         self.msf_options=msf_options
         self.delay=delay
         self.msf_image=msf_image
+        self.compose_project = self.prefix if self.prefix else "setc"
 
         self.setc_yml = self._expand_and_validate(
             "$SETC_PATH/example_configurations/setc-net_docker-compose.yml", "SETC_PATH")
@@ -58,10 +60,13 @@ class DockerComposeMsfCli(BaseRunner):
         return expanded
 
     def target_setup(self) -> None:
-        wdocker = DockerClient(compose_project_name="setc", compose_files=[self.target_yml, self.setc_yml])
+        wdocker = DockerClient(compose_project_name=self.compose_project, compose_files=[self.target_yml, self.setc_yml])
         wdocker.compose.build()
         wdocker.compose.up(detach=True)
         self.wdocker = wdocker
+        # Resolve actual container name for the target service under the new project prefix
+        if self.prefix:
+            self.target_name = self.target_name.replace("setc-", f"{self.compose_project}-", 1)
 
     def target_cleanup(self) -> None:
         if self.tcpdump_instances:

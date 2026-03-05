@@ -3,25 +3,31 @@ from __future__ import annotations
 import logging
 
 import docker
+from utils import prefixed_name
 
 logger = logging.getLogger(__name__)
 
 
 class SplunkModule:
     def __init__(self, docker_client: docker.DockerClient, volume_name: str = "set_logs",
-                 network_name: str = "set_framework_net", splunk_password: str = "password1234") -> None:
+                 network_name: str = "set_framework_net", splunk_password: str = "password1234",
+                 prefix: str = "") -> None:
         self.client=docker_client
         self.volume=volume_name
         self.network=network_name
+        self.prefix=prefix
         self.splunk = None
         self.finished = "Ansible playbook complete, will begin streaming splunkd_stderr.log"
         self.password=splunk_password
         self.setup_complete=False
 
+    def _prefixed(self, name: str) -> str:
+        return prefixed_name(self.prefix, name)
+
     def setup(self) -> None:
         dk_splunk = self.client.containers.run("splunk/splunk", detach=True,
-                                          name="splunk",
-                                          volumes={"set_logs":{'bind':'/data', 'mode':'rw'}},
+                                          name=self._prefixed("splunk"),
+                                          volumes={self.volume:{'bind':'/data', 'mode':'rw'}},
                                           ports={'8000/tcp':8000}, tty=True,
                                           environment=["SPLUNK_START_ARGS=--accept-license",
                                                        "SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com",

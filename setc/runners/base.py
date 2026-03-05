@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import shlex
-import sys
 import time
 from abc import ABC, abstractmethod
 
@@ -10,7 +9,10 @@ import docker
 import docker.models.containers
 import docker.models.networks
 import docker.models.volumes
-from utils import safe_stop_remove
+from rich.console import Console
+from utils import prefixed_name, safe_stop_remove
+
+console = Console(stderr=True)
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +20,19 @@ logger = logging.getLogger(__name__)
 class BaseRunner(ABC):
     def __init__(self, docker_client: docker.DockerClient, network_name: str = "set_framework_net",
                  volume_name: str = "set_logs", target_name: str = "target",
-                 msf_image: str = "metasploitframework/metasploit-framework:6.2.33") -> None:
+                 msf_image: str = "metasploitframework/metasploit-framework:6.2.33",
+                 prefix: str = "") -> None:
         self.client=docker_client
         self.network=network_name
         self.volume=volume_name
         self.msf_image=msf_image
+        self.prefix=prefix
         self.target_name=target_name
         self.exploit_success_pattern="4444"
         self.target_logs=None
+
+    def _prefixed(self, name: str) -> str:
+        return prefixed_name(self.prefix, name)
 
     def network_setup(self) -> docker.models.networks.Network:
         net = None
@@ -52,16 +59,6 @@ class BaseRunner(ABC):
     @abstractmethod
     def target_cleanup(self) -> None:
         pass
-
-    @staticmethod
-    def _progress_dot():
-        sys.stderr.write(".")
-        sys.stderr.flush()
-
-    @staticmethod
-    def _progress_end():
-        sys.stderr.write("\n")
-        sys.stderr.flush()
 
     def _run_tcpdump_container(self, pcap_name: str, attach_to: str) -> docker.models.containers.Container:
         cmd = ["-U", "-v", "-w", f"/data/{pcap_name}/pcap/{pcap_name}.pcap"]
@@ -125,24 +122,28 @@ class BaseRunner(ABC):
             logger.warning("Could not check exploit status: %s", e)
             return False
         cmd_result = str(result.output)
-        self._progress_dot()
         for line in cmd_result.splitlines():
             if pattern in str(line) and "ESTABLISHED" in str(line):
-                self._progress_end()
-                logger.info("Exploit of %s success", self.target_name)
                 return True
         return False
 
     def exploit_until_success(self, status_delay: int = 3, status_checks: int = 7, tries: int = 4) -> bool:
-        for i in range(tries):
-            self.exploit()
-            for i in range (status_checks):
-                if self.exploit_success(pattern=self.exploit_success_pattern):
-                    return True
-                time.sleep(status_delay)
-            self._progress_end()
-        logger.warning("Exploit failed or status unknown")
-        return False
+        success = False
+        with console.status(f"Exploiting {self.target_name}..."):
+            for i in range(tries):
+                self.exploit()
+                for i in range (status_checks):
+                    if self.exploit_success(pattern=self.exploit_success_pattern):
+                        success = True
+                        break
+                    time.sleep(status_delay)
+                if success:
+                    break
+        if success:
+            logger.info("Exploit of %s success", self.target_name)
+        else:
+            logger.warning("Exploit failed or status unknown")
+        return success
 
     @abstractmethod
     def _get_target_container(self) -> docker.models.containers.Container:
@@ -152,19 +153,14 @@ class BaseRunner(ABC):
         #TODO: add a delay and retries argument similar to exploit_until_success
         if self.target_logs == None:
             logger.debug("Checking if target %s is setup", self.target_name)
-        else:
-            self._progress_dot()
         #temp solution
         try:
             target = self._get_target_container()
             logs = target.logs()
         except (docker.errors.NotFound, docker.errors.APIError) as e:
-            self._progress_end()
             logger.warning("Could not get target logs: %s", e)
             return False
         if self.target_logs == logs:
-            self._progress_end()
-            logger.info("Target %s is ready for exploit", self.target_name)
             return True
         else:
             self.target_logs = logs

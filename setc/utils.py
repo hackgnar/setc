@@ -8,6 +8,10 @@ import docker.models.containers
 logger = logging.getLogger(__name__)
 
 
+def prefixed_name(prefix: str, name: str) -> str:
+    return f"{prefix}-{name}" if prefix else name
+
+
 def safe_stop_remove(container: docker.models.containers.Container, label: str = "container") -> None:
     """Stop and remove a container, ignoring errors if already gone."""
     try:

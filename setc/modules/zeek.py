@@ -3,22 +3,26 @@ from __future__ import annotations
 import logging
 
 import docker
-from utils import safe_stop_remove
+from utils import prefixed_name, safe_stop_remove
 
 logger = logging.getLogger(__name__)
 
 
 class ZeekModule:
     def __init__(self, docker_client: docker.DockerClient, volume_name: str = "set_logs",
-                 network_name: str = "set_framework_net") -> None:
+                 network_name: str = "set_framework_net", prefix: str = "") -> None:
         self.client=docker_client
         self.volume=volume_name
         self.network=network_name
+        self.prefix=prefix
         self.zeek = None
+
+    def _prefixed(self, name: str) -> str:
+        return prefixed_name(self.prefix, name)
 
     def setup(self) -> None:
         dk_zeek = self.client.containers.run("zeek/zeek", command="/bin/bash",
-                                        detach=True, name="zeek",tty=True,
+                                        detach=True, name=self._prefixed("zeek"),tty=True,
                                         network=self.network,
                                         volumes={self.volume:{'bind':'/data', 'mode':'rw'}})
         self.zeek = dk_zeek
@@ -48,14 +52,14 @@ class ZeekModule:
             logger.warning("Could not parse pcap: %s", e)
 
     def cleanup(self) -> None:
-        safe_stop_remove(self.zeek, label="zeek")
+        safe_stop_remove(self.zeek, label=self._prefixed("zeek"))
 
     def to_logstandard(self, name: str) -> None:
         cmd = [f"/data/{name}/zeek", f"/data/{name}"]
         try:
             dk_logformat = self.client.containers.run("logformat", detach=True,
-                                                 command=cmd, name="logformat",
-                                                 volumes={"set_logs":{'bind':'/data', 'mode':'rw'}})
-            safe_stop_remove(dk_logformat, label="logformat")
+                                                 command=cmd, name=self._prefixed("logformat"),
+                                                 volumes={self.volume:{'bind':'/data', 'mode':'rw'}})
+            safe_stop_remove(dk_logformat, label=self._prefixed("logformat"))
         except docker.errors.APIError as e:
             logger.warning("Log format conversion failed for %s: %s", name, e)
