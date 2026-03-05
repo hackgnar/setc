@@ -204,6 +204,25 @@ class TestValidateConfig:
         errors = validate_config(cfg)
         assert any("target_name" in e for e in errors)
 
+    @pytest.mark.parametrize("field", [
+        "exploit_retries", "exploit_check_delay", "exploit_check_count",
+        "ready_delay", "ready_retries",
+    ])
+    def test_retry_field_valid(self, field: str):
+        cfg = self._minimal_docker()
+        cfg[0]["settings"][field] = 10
+        assert validate_config(cfg) == []
+
+    @pytest.mark.parametrize("field", [
+        "exploit_retries", "exploit_check_delay", "exploit_check_count",
+        "ready_delay", "ready_retries",
+    ])
+    def test_retry_field_non_numeric(self, field: str):
+        cfg = self._minimal_docker()
+        cfg[0]["settings"][field] = "abc"
+        errors = validate_config(cfg)
+        assert any(field in e for e in errors)
+
 
 # ===================================================================
 # 2. apply_schema() from log_format_conversion

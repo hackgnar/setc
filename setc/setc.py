@@ -70,11 +70,13 @@ def validate_config(config: Any) -> list[str]:
                     errors.append(f"{prefix}: 'target_name' must be a string.")
 
         # Optional fields — type-check only if present
-        if "target_delay" in s:
-            try:
-                int(s["target_delay"])
-            except (ValueError, TypeError):
-                errors.append(f"{prefix}: 'target_delay' must be convertible to an integer.")
+        for field in ("target_delay", "exploit_retries", "exploit_check_delay",
+                       "exploit_check_count", "ready_delay", "ready_retries"):
+            if field in s:
+                try:
+                    int(s[field])
+                except (ValueError, TypeError):
+                    errors.append(f"{prefix}: '{field}' must be convertible to an integer.")
 
         for field in ("exploit_options", "exploit_success_pattern"):
             if field in s and not isinstance(s[field], str):
@@ -280,6 +282,11 @@ def main() -> None:
                 msf_options=""
                 if "exploit_options" in system_config["settings"]:
                     msf_options=system_config["settings"]["exploit_options"]
+                exploit_retries=int(system_config["settings"].get("exploit_retries", 4))
+                exploit_check_delay=int(system_config["settings"].get("exploit_check_delay", 3))
+                exploit_check_count=int(system_config["settings"].get("exploit_check_count", 7))
+                ready_delay=int(system_config["settings"].get("ready_delay", 5))
+                ready_retries=int(system_config["settings"].get("ready_retries", 5))
                 setc = None
                 setc_type = None
                 if "yml_file" in system_config["settings"]:
@@ -332,12 +339,14 @@ def main() -> None:
 
                 with console.status(f"[bold]Waiting for {system_config['name']}...[/bold]"):
                     tries = 0
-                    while not setc.ready_to_exploit():
-                        if tries > 5:
+                    while not setc.ready_to_exploit(ready_delay=ready_delay):
+                        if tries > ready_retries:
                             break
                         tries += 1
                 logger.info("Target %s is ready for exploit", system_config["name"])
-                setc.exploit_until_success()
+                setc.exploit_until_success(status_delay=exploit_check_delay,
+                                           status_checks=exploit_check_count,
+                                           tries=exploit_retries)
 
                 ########################################
                 ###          Pre Down Runners        ###

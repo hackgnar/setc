@@ -149,8 +149,7 @@ class BaseRunner(ABC):
     def _get_target_container(self) -> docker.models.containers.Container:
         pass
 
-    def ready_to_exploit(self) -> bool:
-        #TODO: add a delay and retries argument similar to exploit_until_success
+    def ready_to_exploit(self, ready_delay: int = 5) -> bool:
         if self.target_logs == None:
             logger.debug("Checking if target %s is setup", self.target_name)
         #temp solution
@@ -164,5 +163,5 @@ class BaseRunner(ABC):
             return True
         else:
             self.target_logs = logs
-            time.sleep(5)
+            time.sleep(ready_delay)
         return False
