@@ -22,6 +22,7 @@ sys.argv = _original_argv
 
 from setc import validate_config  # noqa: E402
 from modules.docker_process_logger import (  # noqa: E402
+    ParsedCommand,
     parse_command,
     apply_schema as process_apply_schema,
     cim_endpoint_process,
@@ -351,26 +352,30 @@ class TestZeekNetworkConversions:
 class TestParseCommand:
     """Tests for docker_process_logger.parse_command()."""
 
+    def test_returns_named_tuple(self):
+        result = parse_command("/usr/bin/python3 script.py arg1")
+        assert isinstance(result, ParsedCommand)
+
     def test_normal_command(self):
-        path, filename, abspath, args, fullcmd = parse_command("/usr/bin/python3 script.py arg1")
-        assert filename == "python3"
-        assert args == ["script.py"]
-        assert "python3" in fullcmd
-        assert "arg1" in fullcmd
+        result = parse_command("/usr/bin/python3 script.py arg1")
+        assert result.filename == "python3"
+        assert result.args == ["script.py"]
+        assert "python3" in result.fullcmd
+        assert "arg1" in result.fullcmd
 
     def test_rosetta_prefix(self):
-        path, filename, abspath, args, fullcmd = parse_command(
-            "/usr/libexec/rosetta /usr/bin/python3 script.py"
-        )
-        assert filename == "python3"
-        assert abspath == "/usr/bin/python3"
+        result = parse_command("/usr/libexec/rosetta /usr/bin/python3 script.py")
+        assert result.filename == "python3"
+        assert result.abspath == "/usr/bin/python3"
 
     def test_qemu_prefix(self):
-        path, filename, abspath, args, fullcmd = parse_command(
-            "/usr/bin/qemu-i386 /usr/local/bin/app --flag"
-        )
-        assert filename == "app"
-        assert abspath == "/usr/local/bin/app"
+        result = parse_command("/usr/bin/qemu-i386 /usr/local/bin/app --flag")
+        assert result.filename == "app"
+        assert result.abspath == "/usr/local/bin/app"
+
+    def test_tuple_unpacking_compat(self):
+        path, filename, abspath, args, fullcmd = parse_command("/usr/bin/python3 script.py")
+        assert filename == "python3"
 
 
 # ===================================================================

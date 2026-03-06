@@ -7,12 +7,19 @@ import time
 import io
 import tarfile
 import shlex
-from typing import Any
+from typing import Any, NamedTuple
 
 import docker
 import docker.models.containers
 
 logger = logging.getLogger(__name__)
+
+class ParsedCommand(NamedTuple):
+	path: str
+	filename: str
+	abspath: str
+	args: list[str]
+	fullcmd: str
 
 def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
 	result = {}
@@ -28,7 +35,7 @@ def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
 #TODO: add hostnames to each log model
 #TODO: add a pre/post exploit field to each log model
 
-def parse_command(cmd: str) -> tuple[str, str, str, list[str], str]:
+def parse_command(cmd: str) -> ParsedCommand:
 	tmp = shlex.split(cmd)
 	abspath = ""
 	if os.path.basename(tmp[0]) == "rosetta" or os.path.basename(tmp[0]) == "qemu-i386" :
@@ -40,7 +47,7 @@ def parse_command(cmd: str) -> tuple[str, str, str, list[str], str]:
 	path = os.path.dirname(abspath)
 	args = tmp[1:-1]
 	fullcmd = ' '.join(tmp)
-	return (path, filename, abspath, args, fullcmd)
+	return ParsedCommand(path=path, filename=filename, abspath=abspath, args=args, fullcmd=fullcmd)
 
 cim_endpoint_process = {
 	"timestamp": lambda x: x.get("ts", time.time()), #required
@@ -48,16 +55,16 @@ cim_endpoint_process = {
 	"cpu_load_percent":lambda x: x.get("%CPU"),
 	"dest":lambda x: "unknown", #required
 	"mem_used":lambda x: x.get("%MEM"),
-	"original_file_name": lambda x: parse_command(x.get("COMMAND"))[1],
+	"original_file_name": lambda x: parse_command(x.get("COMMAND")).filename,
 	"parent_process":lambda x: "unknown", #required
 	"parent_process_id":lambda x: x.get("PPID"), #required
 	"parent_process_name":lambda x: "unknown", #required
 	"parent_process_path":lambda x: "unknown", #required
-	"process":lambda x: parse_command(x.get("COMMAND"))[4], #required
-	"process_exec": lambda x: parse_command(x.get("COMMAND"))[2],
+	"process":lambda x: parse_command(x.get("COMMAND")).fullcmd, #required
+	"process_exec": lambda x: parse_command(x.get("COMMAND")).abspath,
 	"process_id": lambda x: x.get("PID"),
-	"process_name": lambda x: parse_command(x.get("COMMAND"))[1],
-	"process_path": lambda x: parse_command(x.get("COMMAND"))[0], #TODO
+	"process_name": lambda x: parse_command(x.get("COMMAND")).filename,
+	"process_path": lambda x: parse_command(x.get("COMMAND")).path, #TODO
 	"user": lambda x: x.get("USER"),
 }
 
@@ -67,12 +74,12 @@ ecs_process = {
 	"event.kind":lambda x:"event",
 	"event.category":lambda x:"process",
 	"event.type":lambda x:"info",
-	"process.args": lambda x: str(shlex.split(parse_command(x.get("COMMAND"))[4])), 
-	"process.args_count":lambda x: len(shlex.split(parse_command(x.get("COMMAND"))[4])),
-	"process.command_line": lambda x:parse_command(x.get("COMMAND"))[4],
-	"process.executable": lambda x: parse_command(x.get("COMMAND"))[2],
-	"process.interactive": lambda x: parse_command(x.get("COMMAND"))[2],
-	"process.name": lambda x: parse_command(x.get("COMMAND"))[1],
+	"process.args": lambda x: str(shlex.split(parse_command(x.get("COMMAND")).fullcmd)),
+	"process.args_count":lambda x: len(shlex.split(parse_command(x.get("COMMAND")).fullcmd)),
+	"process.command_line": lambda x:parse_command(x.get("COMMAND")).fullcmd,
+	"process.executable": lambda x: parse_command(x.get("COMMAND")).abspath,
+	"process.interactive": lambda x: parse_command(x.get("COMMAND")).abspath,
+	"process.name": lambda x: parse_command(x.get("COMMAND")).filename,
 	"process.pgid": lambda x: x.get("PGID"),
 	"process.pid": lambda x: x.get("PID"),
 	"process.start": lambda x: x.get("TIME"),
@@ -96,22 +103,22 @@ ocsf_process = {
 	"type_uid": lambda x: "501599",
 	"type_name": lambda x: "Process Query: Other",	
 	"process": {
-		"name": lambda x: parse_command(x.get("COMMAND"))[1],
+		"name": lambda x: parse_command(x.get("COMMAND")).filename,
 		"pid": lambda x: x.get("PID"),
 		"session": {
 			"terminal": lambda x: x.get("TT"),
 		},
 		"file": {
-			"name": lambda x: parse_command(x.get("COMMAND"))[1],
+			"name": lambda x: parse_command(x.get("COMMAND")).filename,
 			"type": lambda x: "process",
-			"path": lambda x: parse_command(x.get("COMMAND"))[2],
+			"path": lambda x: parse_command(x.get("COMMAND")).abspath,
 			"type_id": lambda x: "99",
-			"parent_folder": lambda x: parse_command(x.get("COMMAND"))[0],
+			"parent_folder": lambda x: parse_command(x.get("COMMAND")).path,
 		},
 		"user": {
 			"name": lambda x: x.get("USER")
 		},
-		"cmd_line": lambda x:parse_command(x.get("COMMAND"))[4],
+		"cmd_line": lambda x:parse_command(x.get("COMMAND")).fullcmd,
 		"created_time":lambda x: x.get("TIME")
   },
   "metadata": {
