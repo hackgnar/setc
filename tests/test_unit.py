@@ -393,6 +393,10 @@ class TestProcessSchemas:
         assert result["process.pid"] == "1"
         assert result["event.category"] == "process"
         assert result["user"] == "root"
+        assert isinstance(result["process.args"], list)
+        assert "python3" in result["process.args"][0]
+        assert "script.py" in result["process.args"]
+        assert result["process.interactive"] is False  # TT == "?"
 
     def test_ocsf_process_nested(self):
         result = process_apply_schema(SAMPLE_PROCESS, ocsf_process)

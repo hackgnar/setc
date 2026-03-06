@@ -24,6 +24,9 @@ class ParsedCommand(NamedTuple):
 def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
 	"""Transform a log dict using a schema of field-name-to-lambda mappings.
 
+	NOTE: This is intentionally duplicated in docker_images/log_format/log_format_conversion.py
+	because that file runs inside an isolated Docker container and cannot import from setc/.
+
 	Args:
 		log: Source log entry (e.g. a docker top row as a dict).
 		schema: Mapping of output field names to callables or nested schema dicts.
@@ -87,11 +90,11 @@ ecs_process = {
 	"event.kind":lambda x:"event",
 	"event.category":lambda x:"process",
 	"event.type":lambda x:"info",
-	"process.args": lambda x: str(shlex.split(parse_command(x.get("COMMAND")).fullcmd)),
+	"process.args": lambda x: shlex.split(parse_command(x.get("COMMAND")).fullcmd),
 	"process.args_count":lambda x: len(shlex.split(parse_command(x.get("COMMAND")).fullcmd)),
 	"process.command_line": lambda x:parse_command(x.get("COMMAND")).fullcmd,
 	"process.executable": lambda x: parse_command(x.get("COMMAND")).abspath,
-	"process.interactive": lambda x: parse_command(x.get("COMMAND")).abspath,
+	"process.interactive": lambda x: x.get("TT", "?") != "?",
 	"process.name": lambda x: parse_command(x.get("COMMAND")).filename,
 	"process.pgid": lambda x: x.get("PGID"),
 	"process.pid": lambda x: x.get("PID"),

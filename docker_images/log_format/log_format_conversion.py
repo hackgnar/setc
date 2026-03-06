@@ -10,6 +10,9 @@ from typing import Any
 def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
     """Transform a log dict using a schema of field-name-to-lambda mappings.
 
+    NOTE: This is intentionally duplicated in setc/modules/docker_process_logger.py
+    because this file runs inside an isolated Docker container and cannot import from setc/.
+
     Args:
         log: Source Zeek JSON log entry.
         schema: Mapping of output field names to callables or nested schema dicts.
