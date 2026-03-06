@@ -162,7 +162,7 @@ class BaseRunner(ABC):
         with console.status(f"Exploiting {self.target_name}..."):
             for i in range(tries):
                 self.exploit()
-                for i in range (status_checks):
+                for j in range (status_checks):
                     if self.exploit_success(pattern=self.exploit_success_pattern):
                         success = True
                         break
