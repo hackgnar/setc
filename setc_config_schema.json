@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/setc/setc_config_schema.json",
+  "title": "SETC Configuration",
+  "description": "Schema for SETC (Security Exploit Telemetry Collection) configuration files. Each config is an array of exploit entries targeting vulnerable Docker containers.",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "title": "Exploit Entry",
+    "description": "A single exploit entry defining a target and the Metasploit exploit to run against it.",
+    "required": ["name", "settings"],
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "type": "string",
+        "title": "CVE / Exploit Name",
+        "description": "Unique identifier for this entry, typically a CVE ID (e.g. CVE-2021-42013)."
+      },
+      "settings": {
+        "type": "object",
+        "title": "Exploit Settings",
+        "description": "Configuration for the target environment and Metasploit exploit.",
+        "required": ["description", "exploit"],
+        "additionalProperties": true,
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Human-readable description of the vulnerability or exploit."
+          },
+          "exploit": {
+            "type": "string",
+            "title": "Metasploit Exploit Module",
+            "description": "Metasploit module path (e.g. multi/http/struts2_multi_eval_ognl)."
+          },
+          "target_image": {
+            "type": "string",
+            "title": "Target Docker Image",
+            "description": "Docker image containing the vulnerable service (single-container mode)."
+          },
+          "yml_file": {
+            "type": "string",
+            "title": "Docker Compose File",
+            "description": "Path to docker-compose YAML for multi-container targets. Supports $SETC_PATH and $VULN_PATH env vars."
+          },
+          "target_name": {
+            "type": "string",
+            "title": "Target Container Name",
+            "description": "Name of the target container within the docker-compose environment."
+          },
+          "exploit_options": {
+            "type": "string",
+            "title": "Metasploit Options",
+            "description": "Additional MSF console commands (e.g. 'set PAYLOAD cmd/unix/reverse_bash;set RPORT 9080;')."
+          },
+          "exploit_success_pattern": {
+            "type": "string",
+            "title": "Exploit Success Pattern",
+            "description": "Regex pattern to detect successful exploitation in MSF output."
+          },
+          "target_delay": {
+            "type": ["string", "integer"],
+            "title": "Target Startup Delay",
+            "description": "Seconds to wait after starting the target container before exploitation. Default: 0.",
+            "minimum": 0
+          },
+          "exploit_retries": {
+            "type": ["string", "integer"],
+            "title": "Exploit Retries",
+            "description": "Number of times to retry the exploit before giving up. Default: 4.",
+            "minimum": 0
+          },
+          "exploit_check_delay": {
+            "type": ["string", "integer"],
+            "title": "Exploit Check Delay",
+            "description": "Seconds between status checks during exploit execution. Default: 3.",
+            "minimum": 0
+          },
+          "exploit_check_count": {
+            "type": ["string", "integer"],
+            "title": "Exploit Check Count",
+            "description": "Number of status checks per exploit attempt. Default: 7.",
+            "minimum": 0
+          },
+          "ready_delay": {
+            "type": ["string", "integer"],
+            "title": "Ready Check Delay",
+            "description": "Seconds to wait between target readiness checks. Default: 5.",
+            "minimum": 0
+          },
+          "ready_retries": {
+            "type": ["string", "integer"],
+            "title": "Ready Check Retries",
+            "description": "Number of readiness checks before giving up. Default: 5.",
+            "minimum": 0
+          }
+        },
+        "oneOf": [
+          {
+            "title": "Single Container Target",
+            "description": "Use a single Docker image as the vulnerable target.",
+            "required": ["target_image"],
+            "not": {
+              "required": ["yml_file"]
+            }
+          },
+          {
+            "title": "Docker Compose Target",
+            "description": "Use a docker-compose file to set up a multi-container target environment.",
+            "required": ["yml_file", "target_name"],
+            "not": {
+              "required": ["target_image"]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
