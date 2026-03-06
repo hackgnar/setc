@@ -50,7 +50,7 @@ docker build -t tcpdump .
 
 * Log Standard Formatting - This container is currently used to transpose log formats to supported logging standards. This will be replace by Nifi in the upcoming SETC beta version.
 ```
-cd docker_images/logformat
+cd docker_images/log_format
 docker build -t logformat .
 ```
 
@@ -80,14 +80,14 @@ docker pull vulhub/laravel:8.4.2
 
 * CVE-2021-41773
 ```
-cd docker_images/http/CVE-2021-41773
+cd docker_images/httpd/CVE-2021-41773
 docker build -t cve-2021-41773 .
 
 ```
 
 * CVE-2021-42013
 ```
-cd docker_images/http/CVE-2021-42013
+cd docker_images/httpd/CVE-2021-42013
 docker build -t cve-2021-42013 .
 
 ```
@@ -117,7 +117,7 @@ options:
   --cleanup_network     Delete the SETC docker network before running.
   --cleanup_volume      Delete the SETC docker log volume before running.
   -v, --verbose         Enable SETC debug logging.
-  --zeek                SETC parses pcap logs with zeek by default. Use this flag to DISABLE zeek.
+  --no-zeek             SETC parses pcap logs with zeek by default. Use this flag to DISABLE zeek.
   --msf MSF             Override the default metasploit framework image. This is useful if you would like to use custom built or bleeding edge msf
                         image to get access to the latest or custom msf exploits
 ```

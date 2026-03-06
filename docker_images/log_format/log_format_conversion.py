@@ -7,9 +7,6 @@ import os
 import sys
 from typing import Any
 
-base_dir=sys.argv[1]
-output_dir=sys.argv[2]
-
 def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
     """Transform a log dict using a schema of field-name-to-lambda mappings.
 
@@ -251,6 +248,9 @@ def zeek_to_cim(log: dict[str, Any]) -> dict[str, Any]:
     return apply_schema(log, cim_http_from_zeek)
 
 if __name__ == "__main__":
+    base_dir = sys.argv[1]
+    output_dir = sys.argv[2]
+
     # HTTP
     cim_logs = []
     ocsf_logs = []

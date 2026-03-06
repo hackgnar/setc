@@ -177,7 +177,7 @@
             "yml_file":"$VULN_PATH/goahead/CVE-2017-17562/docker-compose.yml",
             "target_name":"setc-web-1",
             "exploit": "linux/http/goahead_ldpreload",
-            "exoloit_options":"set target Linux x86_64;"
+            "exploit_options":"set target Linux x86_64;"
         }
     },
      {"name":"CVE-2016-6811",
@@ -360,7 +360,7 @@
             "exploit_options":"set RPORT 8080; set payload cmd/unix/reverse_bash; set ForceExploit true;"
         }
     },
-    {"name":"CVE-2017-563",
+    {"name":"CVE-2017-5638",
         "settings": {
             "description":"Apache Struts Jakarta Multipart Parser OGNL Injection",
             "yml_file":"$VULN_PATH/struts2/s2-046/docker-compose.yml",

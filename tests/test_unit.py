@@ -12,13 +12,8 @@ from typing import Any
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "setc"))
 
-# log_format_conversion.py reads sys.argv[1] and sys.argv[2] at module level,
-# so we must patch argv before importing it.
-_original_argv = sys.argv[:]
-sys.argv = ["test", "/tmp", "/tmp"]
 sys.path.insert(0, os.path.join(ROOT, "docker_images", "log_format"))
 import log_format_conversion as lfc  # noqa: E402
-sys.argv = _original_argv
 
 from setc import validate_config  # noqa: E402
 from modules.docker_process_logger import (  # noqa: E402

@@ -135,7 +135,7 @@ class BaseRunner(ABC):
         args = args % (self.msf_exploit, self.msf_options, self.target_name, "%s-attack" % self.target_name)
         result = self.attack.exec_run(cmd=[cmd, flag, args], tty=True, detach=True)
 
-    def exploit_success(self, pattern: int = 4444) -> bool:
+    def exploit_success(self, pattern: str = "4444") -> bool:
         """Check if the exploit established a connection matching the given port pattern."""
         #TODO: create config support for custom exploit estabilished pattern
         cmd = ["sh", "-c", f"netstat | grep {shlex.quote(str(pattern))} | grep ESTABLISHED"]
