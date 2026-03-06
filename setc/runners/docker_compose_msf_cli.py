@@ -22,11 +22,14 @@ A config will have the following:
 
 
 class DockerComposeMsfCli(BaseRunner):
+    """Runner for exploiting multi-container targets defined by docker-compose files."""
+
     def __init__(self, docker_client: docker.DockerClient, vuln_name: str = "", target_name: str = "target",
                  network_name: str = "set_framework_net", volume_name: str = "set_logs",
                  target_yml: str = "", msf_exploit: str = "", msf_options: str = "", delay: int = 0,
                  msf_image: str = "metasploitframework/metasploit-framework:6.2.33",
                  prefix: str = "") -> None:
+        """Initialize with compose file path, target service name, and exploit config."""
         super().__init__(docker_client, network_name, volume_name, prefix=prefix)
         self.vuln_name = vuln_name
         self.target_yml = self._expand_and_validate(target_yml, "yml_file")
@@ -46,6 +49,12 @@ class DockerComposeMsfCli(BaseRunner):
  
     @staticmethod
     def _expand_and_validate(path: str, label: str) -> str:
+        """Expand environment variables in a path and verify it exists.
+
+        Raises:
+            EnvironmentError: If any env vars remain unexpanded.
+            FileNotFoundError: If the expanded path does not exist.
+        """
         expanded = os.path.expandvars(path)
         if "$" in expanded:
             unset = [tok for tok in expanded.split(os.sep) if tok.startswith("$")]
@@ -60,6 +69,7 @@ class DockerComposeMsfCli(BaseRunner):
         return expanded
 
     def target_setup(self) -> None:
+        """Build and start the docker-compose services."""
         wdocker = DockerClient(compose_project_name=self.compose_project, compose_files=[self.target_yml, self.setc_yml])
         wdocker.compose.build()
         wdocker.compose.up(detach=True)
@@ -69,6 +79,7 @@ class DockerComposeMsfCli(BaseRunner):
             self.target_name = self.target_name.replace("setc-", f"{self.compose_project}-", 1)
 
     def target_cleanup(self) -> None:
+        """Stop and remove all compose services and tcpdump sidecars."""
         if self.tcpdump_instances:
             self.tcpdump_cleanup()
         try:
@@ -78,6 +89,7 @@ class DockerComposeMsfCli(BaseRunner):
             logger.warning("Failed to stop/remove compose services: %s", e)
 
     def tcpdump_setup(self) -> None:
+        """Start a tcpdump container for the target compose service."""
         tcpdump_instances = []
         for i in self.wdocker.compose.ps():
             #TODO: parse pcaps for all compose instances. For now, we are only parsing the target instance
@@ -87,8 +99,10 @@ class DockerComposeMsfCli(BaseRunner):
         self.tcpdump_instances = tcpdump_instances
 
     def tcpdump_cleanup(self) -> None:
+        """Stop and remove all tcpdump sidecar containers."""
         for instance in self.tcpdump_instances:
             safe_stop_remove(instance, label="tcpdump")
 
     def _get_target_container(self) -> docker.models.containers.Container:
+        """Look up and return the target container by name from the Docker API."""
         return self.client.containers.get(self.target_name)

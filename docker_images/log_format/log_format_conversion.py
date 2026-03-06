@@ -11,6 +11,15 @@ base_dir=sys.argv[1]
 output_dir=sys.argv[2]
 
 def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+    """Transform a log dict using a schema of field-name-to-lambda mappings.
+
+    Args:
+        log: Source Zeek JSON log entry.
+        schema: Mapping of output field names to callables or nested schema dicts.
+
+    Returns:
+        Transformed dict with schema-defined fields. None values are omitted.
+    """
     result = {}
     for field_name, mapping in schema.items():
         if isinstance(mapping, dict):
@@ -58,6 +67,7 @@ cim_http_from_zeek = {
 }
 
 def ocsf_activity_id(method: str) -> int:
+    """Map an HTTP method name to its OCSF activity ID integer."""
     if method.lower() == "connect":
         return 1
     if method.lower() == "delete":
@@ -121,6 +131,7 @@ ocsf_http_from_zeek = {
 }
 
 def zeek_to_ocsf(log: dict[str, Any]) -> dict[str, Any]:
+    """Convert a Zeek HTTP log entry to OCSF HTTP Activity format."""
     return apply_schema(log, ocsf_http_from_zeek)
 
 ecs_http_from_zeek = {
@@ -211,19 +222,24 @@ ocsf_network_from_zeek = {
 }
 
 def zeek_to_network_ecs(log: dict[str, Any]) -> dict[str, Any]:
+    """Convert a Zeek conn log entry to ECS network format."""
     return apply_schema(log, ecs_network_from_zeek)
 
 def zeek_to_network_ocsf(log: dict[str, Any]) -> dict[str, Any]:
+    """Convert a Zeek conn log entry to OCSF Network Activity format."""
     return apply_schema(log, ocsf_network_from_zeek)
 
 def zeek_to_network_cim(log: dict[str, Any]) -> dict[str, Any]:
+    """Convert a Zeek conn log entry to CIM Network Traffic format."""
     return apply_schema(log, cim_network_from_zeek)
 
 def zeek_to_ecs(log: dict[str, Any]) -> dict[str, Any]:
+    """Convert a Zeek HTTP log entry to ECS format."""
     return apply_schema(log, ecs_http_from_zeek)
 
 
 def find_all(name: str, path: str) -> list[str]:
+    """Recursively find all files matching a name under the given path."""
     result = []
     for root, dirs, files in os.walk(path):
         if name in files:
@@ -231,6 +247,7 @@ def find_all(name: str, path: str) -> list[str]:
     return result
 
 def zeek_to_cim(log: dict[str, Any]) -> dict[str, Any]:
+    """Convert a Zeek HTTP log entry to CIM Web format."""
     return apply_schema(log, cim_http_from_zeek)
 
 if __name__ == "__main__":

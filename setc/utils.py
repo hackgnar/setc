@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def prefixed_name(prefix: str, name: str) -> str:
+    """Return '{prefix}-{name}' if a prefix is set, otherwise just name."""
     return f"{prefix}-{name}" if prefix else name
 
 

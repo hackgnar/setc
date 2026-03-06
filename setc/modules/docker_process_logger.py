@@ -22,6 +22,15 @@ class ParsedCommand(NamedTuple):
 	fullcmd: str
 
 def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+	"""Transform a log dict using a schema of field-name-to-lambda mappings.
+
+	Args:
+		log: Source log entry (e.g. a docker top row as a dict).
+		schema: Mapping of output field names to callables or nested schema dicts.
+
+	Returns:
+		Transformed dict with schema-defined fields. None values are omitted.
+	"""
 	result = {}
 	for field_name, mapping in schema.items():
 		if isinstance(mapping, dict):
@@ -36,6 +45,10 @@ def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
 #TODO: add a pre/post exploit field to each log model
 
 def parse_command(cmd: str) -> ParsedCommand:
+	"""Parse a process command string into path, filename, args, and full command.
+
+	Handles rosetta/qemu prefixed commands by stripping the emulator wrapper.
+	"""
 	tmp = shlex.split(cmd)
 	abspath = ""
 	if os.path.basename(tmp[0]) == "rosetta" or os.path.basename(tmp[0]) == "qemu-i386" :
@@ -130,7 +143,10 @@ ocsf_process = {
 }
 
 class DockerProcessLogs:
+	"""Captures container process tables and converts them to CIM, ECS, and OCSF formats."""
+
 	def __init__(self, write_container: docker.models.containers.Container, volume_name: str = "set_logs") -> None:
+		"""Initialize with the container used for writing logs to the shared volume."""
 		self.write_container=write_container
 		self.read_container=None
 		self.raw_logs = None
@@ -140,6 +156,7 @@ class DockerProcessLogs:
 		self.cim=None
 
 	def post_up(self, read_container: docker.models.containers.Container, vuln_name: str) -> None:
+		"""Snapshot process table after target comes up, convert, and write logs."""
 		self.read_container=read_container
 		self.get_process_logs(read_container)
 		self.convert_to_cim()
@@ -150,6 +167,7 @@ class DockerProcessLogs:
 		self.write_to_volume("ocsf", vuln_name)
 
 	def pre_down(self, read_container: docker.models.containers.Container, vuln_name: str) -> None:
+		"""Snapshot process table before target goes down, convert, and write logs."""
 		self.read_container=read_container
 		self.get_process_logs(read_container)
 		self.convert_to_cim()
@@ -160,6 +178,7 @@ class DockerProcessLogs:
 		self.write_to_volume("ocsf", vuln_name)
 
 	def get_process_logs(self, read_container: docker.models.containers.Container) -> None:
+		"""Run 'docker top' on the container and store the process table as dicts."""
 		args = "o user,pid,ppid,pgid,sess,jobc,state,tt,time,etime,logname,%cpu,%mem,args"
 		try:
 			raw_logs = read_container.top(ps_args=args)
@@ -172,15 +191,24 @@ class DockerProcessLogs:
 		self.docker_logs=[dict(zip(raw_logs["Titles"],i)) for i in raw_logs["Processes"]]
 
 	def convert_to_ocsf(self) -> None:
+		"""Convert stored process logs to OCSF format."""
 		self.ocsf = [apply_schema(log, ocsf_process) for log in self.docker_logs]
 
 	def convert_to_ecs(self) -> None:
+		"""Convert stored process logs to ECS format."""
 		self.ecs = [apply_schema(log, ecs_process) for log in self.docker_logs]
 
 	def convert_to_cim(self) -> None:
+		"""Convert stored process logs to CIM format."""
 		self.cim = [apply_schema(log, cim_endpoint_process) for log in self.docker_logs]
 
 	def write_to_volume(self, log_type: str, directory: str) -> None:
+		"""Write converted logs to the shared Docker volume as a tar archive.
+
+		Args:
+			log_type: One of 'cim', 'ecs', or 'ocsf'.
+			directory: CVE/vuln name used as the subdirectory on the volume.
+		"""
 		tar_fileobj = io.BytesIO()
 		with tarfile.open(fileobj=tar_fileobj, mode="w|") as tar:
 			my_content = json.dumps(getattr(self,log_type)).encode('utf-8')

@@ -10,9 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 class SplunkModule:
+    """Optional SIEM module that runs a Splunk container and indexes SETC logs."""
+
     def __init__(self, docker_client: docker.DockerClient, volume_name: str = "set_logs",
                  network_name: str = "set_framework_net", splunk_password: str = "password1234",
                  prefix: str = "") -> None:
+        """Initialize Splunk module with Docker client and connection settings."""
         self.client=docker_client
         self.volume=volume_name
         self.network=network_name
@@ -23,6 +26,7 @@ class SplunkModule:
         self.setup_complete=False
 
     def _prefixed(self, name: str) -> str:
+        """Return the session-prefixed version of a container name."""
         return prefixed_name(self.prefix, name)
 
     def _find_existing(self) -> docker.models.containers.Container | None:
@@ -39,6 +43,7 @@ class SplunkModule:
         return None
 
     def setup(self) -> None:
+        """Start a Splunk container, or reuse one already mounted to our volume."""
         existing = self._find_existing()
         if existing:
             logger.info("Reusing existing Splunk container: %s", existing.name)
@@ -56,9 +61,11 @@ class SplunkModule:
         self.splunk = dk_splunk
 
     def is_ready(self) -> bool:
+        """Return True if the Splunk container has finished its startup playbook."""
         return self.finished in str(self.splunk.logs())
 
     def post_setup(self) -> None:
+        """Create Splunk indexes (zeek, cim, ecs, ocsf) and add data monitors."""
         auth = f"admin:{self.password}"
         commands = [
             ["./bin/splunk", "add", "index", "zeek", "-auth", auth],
@@ -80,6 +87,7 @@ class SplunkModule:
         self.setup_complete=True
 
     def cleanup(self, remove: bool = False) -> None:
+        """Optionally stop and remove the Splunk container, or leave it running."""
         if self.splunk:
             if remove:
                 try:

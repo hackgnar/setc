@@ -16,6 +16,15 @@ from modules.docker_process_logger import DockerProcessLogs
 
 
 def validate_config(config: Any) -> list[str]:
+    """Validate a SETC configuration object and return a list of error strings.
+
+    Args:
+        config: Parsed JSON configuration to validate. Must be a non-empty list
+            of entry dicts, each with 'name' and 'settings'.
+
+    Returns:
+        List of human-readable error messages. Empty list means valid.
+    """
     errors = []
 
     if not isinstance(config, list) or len(config) == 0:
@@ -86,6 +95,11 @@ def validate_config(config: Any) -> list[str]:
 
 
 def parse_args() -> tuple[argparse.Namespace, list[dict[str, Any]]]:
+    """Parse CLI arguments, load and validate the config file.
+
+    Returns:
+        Tuple of (parsed arguments namespace, validated config list).
+    """
     parser = argparse.ArgumentParser(
         prog="setc",
         description="Security Event Traffic Creator - generate realistic attack traffic and logs for security testing.",
@@ -167,6 +181,8 @@ console = Console(stderr=True)
 
 
 class _ColorFormatter(logging.Formatter):
+    """Logging formatter that adds ANSI color codes and emoji labels per log level."""
+
     COLORS = {
         logging.DEBUG:    "\033[36m🔍 DEBUG\033[0m",    # cyan
         logging.INFO:     "\033[32m✅ INFO\033[0m",      # green
@@ -176,12 +192,14 @@ class _ColorFormatter(logging.Formatter):
     }
 
     def format(self, record):
+        """Format a log record with a colored level label and dimmed timestamp."""
         label = self.COLORS.get(record.levelno, record.levelname)
         ts = self.formatTime(record, self.datefmt)
         return f"\033[2m{ts}\033[0m {label}  {record.getMessage()}"
 
 
 def main() -> None:
+    """SETC entrypoint: parse config, set up Docker resources, run exploits, and collect logs."""
     args, config = parse_args()
 
     handler = logging.StreamHandler()
