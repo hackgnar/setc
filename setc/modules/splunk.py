@@ -1,36 +1,64 @@
+from __future__ import annotations
+
 import logging
 
 import docker
-from utils import safe_stop_remove
+import docker.models.containers
+from utils import prefixed_name
 
 logger = logging.getLogger(__name__)
 
 
 class SplunkModule:
-    def __init__(self, docker_client, volume_name="set_logs",
-                 network_name="set_framework_net", splunk_password="password1234"):
+    def __init__(self, docker_client: docker.DockerClient, volume_name: str = "set_logs",
+                 network_name: str = "set_framework_net", splunk_password: str = "password1234",
+                 prefix: str = "") -> None:
         self.client=docker_client
         self.volume=volume_name
         self.network=network_name
+        self.prefix=prefix
         self.splunk = None
         self.finished = "Ansible playbook complete, will begin streaming splunkd_stderr.log"
         self.password=splunk_password
         self.setup_complete=False
 
-    def setup(self):
+    def _prefixed(self, name: str) -> str:
+        return prefixed_name(self.prefix, name)
+
+    def _find_existing(self) -> docker.models.containers.Container | None:
+        """Find a running Splunk container already mounted to our volume."""
+        for container in self.client.containers.list(all=True,
+                                                      filters={"ancestor": "splunk/splunk"}):
+            mounts = container.attrs.get("Mounts", [])
+            for m in mounts:
+                if m.get("Name") == self.volume:
+                    if container.status != "running":
+                        logger.info("Starting stopped Splunk container: %s", container.name)
+                        container.start()
+                    return container
+        return None
+
+    def setup(self) -> None:
+        existing = self._find_existing()
+        if existing:
+            logger.info("Reusing existing Splunk container: %s", existing.name)
+            self.splunk = existing
+            self.setup_complete = True
+            return
         dk_splunk = self.client.containers.run("splunk/splunk", detach=True,
-                                          name="splunk",
-                                          volumes={"set_logs":{'bind':'/data', 'mode':'rw'}},
-                                          ports={8000:8000}, tty=True,
+                                          name=self._prefixed("splunk"),
+                                          volumes={self.volume:{'bind':'/data', 'mode':'rw'}},
+                                          ports={'8000/tcp':8000}, tty=True,
                                           environment=["SPLUNK_START_ARGS=--accept-license",
+                                                       "SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com",
                                                        "SPLUNK_PASSWORD={}".format(self.password)],
                                           platform="linux/amd64")
         self.splunk = dk_splunk
 
-    def is_ready(self):
+    def is_ready(self) -> bool:
         return self.finished in str(self.splunk.logs())
 
-    def post_setup(self):
+    def post_setup(self) -> None:
         auth = f"admin:{self.password}"
         commands = [
             ["./bin/splunk", "add", "index", "zeek", "-auth", auth],
@@ -51,6 +79,14 @@ class SplunkModule:
                 logger.warning("Splunk exec failed: %s", e)
         self.setup_complete=True
 
-    def cleanup(self):
+    def cleanup(self, remove: bool = False) -> None:
         if self.splunk:
-            safe_stop_remove(self.splunk, label="splunk")
+            if remove:
+                try:
+                    self.splunk.stop()
+                    self.splunk.remove()
+                    logger.info("Splunk container removed")
+                except (docker.errors.NotFound, docker.errors.APIError) as e:
+                    logger.warning("Could not remove Splunk container: %s", e)
+            else:
+                logger.info("Splunk available at http://localhost:8000 (user: admin)")

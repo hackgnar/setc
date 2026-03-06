@@ -44,7 +44,7 @@ def cve_log_dir(volume_base, cve_name):
     return volume_base / cve_name
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def run_setc():
     """Run SETC once for the entire test session, then yield for assertions."""
     cmd = [

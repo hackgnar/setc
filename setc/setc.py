@@ -1,8 +1,13 @@
+from __future__ import annotations
+
 import docker
 import argparse
 import logging
 import time
 import json
+import uuid
+from typing import Any
+from rich.console import Console
 from runners.docker_msf_cli import DockerMsfCli
 from runners.docker_compose_msf_cli import DockerComposeMsfCli
 from modules.zeek import ZeekModule
@@ -10,7 +15,7 @@ from modules.splunk import SplunkModule
 from modules.docker_process_logger import DockerProcessLogs
 
 
-def validate_config(config):
+def validate_config(config: Any) -> list[str]:
     errors = []
 
     if not isinstance(config, list) or len(config) == 0:
@@ -65,11 +70,13 @@ def validate_config(config):
                     errors.append(f"{prefix}: 'target_name' must be a string.")
 
         # Optional fields — type-check only if present
-        if "target_delay" in s:
-            try:
-                int(s["target_delay"])
-            except (ValueError, TypeError):
-                errors.append(f"{prefix}: 'target_delay' must be convertible to an integer.")
+        for field in ("target_delay", "exploit_retries", "exploit_check_delay",
+                       "exploit_check_count", "ready_delay", "ready_retries"):
+            if field in s:
+                try:
+                    int(s[field])
+                except (ValueError, TypeError):
+                    errors.append(f"{prefix}: '{field}' must be convertible to an integer.")
 
         for field in ("exploit_options", "exploit_success_pattern"):
             if field in s and not isinstance(s[field], str):
@@ -78,7 +85,7 @@ def validate_config(config):
     return errors
 
 
-def parse_args():
+def parse_args() -> tuple[argparse.Namespace, list[dict[str, Any]]]:
     parser = argparse.ArgumentParser(
         prog="setc",
         description="Security Event Traffic Creator - generate realistic attack traffic and logs for security testing.",
@@ -103,6 +110,9 @@ def parse_args():
     docker_group.add_argument("--msf",
                               help="Override the default metasploit framework image. This is useful if you would like to use custom built or bleeding edge msf image to get access to the latest or custom msf exploits",
                               default="metasploitframework/metasploit-framework:6.2.33")
+    docker_group.add_argument("--prefix",
+                              help="Session prefix for container names to avoid collisions between concurrent runs. Auto-generated if not provided.",
+                              default=None)
 
     module_group = parser.add_argument_group("Module options")
     module_group.add_argument("--splunk",
@@ -118,6 +128,9 @@ def parse_args():
                                action='store_true')
     cleanup_group.add_argument("--cleanup_volume",
                                help="Delete the SETC docker log volume before running.",
+                               action='store_true')
+    cleanup_group.add_argument("--cleanup_splunk",
+                               help="Remove the Splunk container after SETC completes instead of leaving it running.",
                                action='store_true')
 
     args = parser.parse_args()
@@ -150,6 +163,7 @@ BANNER = r"""
 
 
 logger = logging.getLogger(__name__)
+console = Console(stderr=True)
 
 
 class _ColorFormatter(logging.Formatter):
@@ -167,7 +181,7 @@ class _ColorFormatter(logging.Formatter):
         return f"\033[2m{ts}\033[0m {label}  {record.getMessage()}"
 
 
-def main():
+def main() -> None:
     args, config = parse_args()
 
     handler = logging.StreamHandler()
@@ -181,9 +195,12 @@ def main():
 
     print(BANNER)
 
+    prefix = args.prefix if args.prefix else f"setc-{uuid.uuid4().hex[:4]}"
+    logger.info("Session prefix: %s", prefix)
+
     # framework setup
     try:
-        client = docker.from_env()
+        client = docker.from_env(timeout=300)
     except docker.errors.DockerException as e:
         logger.error("Failed to connect to Docker. Is Docker running?")
         logger.error("Error: %s", e)
@@ -227,7 +244,8 @@ def main():
         ###       PRE UP Core Modules        ###
         ########################################
         if not args.no_zeek:
-            zeek = ZeekModule(client)
+            zeek = ZeekModule(client, volume_name=args.volume,
+                              network_name=args.network, prefix=prefix)
             zeek.setup()
             for system_config in config:
                 zeek.create_log_directories(system_config["name"])
@@ -237,7 +255,9 @@ def main():
             tp = DockerProcessLogs(zeek.zeek)
 
         if args.splunk:
-            splunk = SplunkModule(client, splunk_password=args.password)
+            splunk = SplunkModule(client, volume_name=args.volume,
+                                  network_name=args.network,
+                                  splunk_password=args.password, prefix=prefix)
             splunk.setup()
 
 
@@ -265,6 +285,11 @@ def main():
                 msf_options=""
                 if "exploit_options" in system_config["settings"]:
                     msf_options=system_config["settings"]["exploit_options"]
+                exploit_retries=int(system_config["settings"].get("exploit_retries", 4))
+                exploit_check_delay=int(system_config["settings"].get("exploit_check_delay", 3))
+                exploit_check_count=int(system_config["settings"].get("exploit_check_count", 7))
+                ready_delay=int(system_config["settings"].get("ready_delay", 5))
+                ready_retries=int(system_config["settings"].get("ready_retries", 5))
                 setc = None
                 setc_type = None
                 if "yml_file" in system_config["settings"]:
@@ -274,7 +299,8 @@ def main():
                                                target_yml=system_config["settings"]["yml_file"],
                                                msf_exploit=system_config["settings"]["exploit"],
                                                msf_options=msf_options,
-                                               msf_image=args.msf)
+                                               msf_image=args.msf,
+                                               prefix=prefix)
                     setc_type="compose"
                 else:
                     setc = DockerMsfCli(client,
@@ -283,7 +309,8 @@ def main():
                                         msf_exploit=system_config["settings"]["exploit"],
                                         msf_options=msf_options,
                                         delay=delay,
-                                        msf_image=args.msf)
+                                        msf_image=args.msf,
+                                        prefix=prefix)
                     setc_type="docker"
                 #Note: Trying the pattern match passing a different way to cut down on class arguments
                 if "exploit_success_pattern" in system_config["settings"]:
@@ -308,18 +335,21 @@ def main():
                 ########################################
                 if tp:
                     if setc_type == "docker":
-                        tp.post_up(setc.target, setc.target.name)
+                        tp.post_up(setc.target, system_config["name"])
                     else:
-                        #TODO: user docker client to pull the instance by name
-                        target = client.containers.get(system_config["settings"]["target_name"])
+                        target = setc._get_target_container()
                         tp.post_up(target, system_config["name"])
 
-                tries = 0
-                while not setc.ready_to_exploit():
-                    if tries > 5:
-                        break
-                    tries += 1
-                setc.exploit_until_success()
+                with console.status(f"[bold]Waiting for {system_config['name']}...[/bold]"):
+                    tries = 0
+                    while not setc.ready_to_exploit(ready_delay=ready_delay):
+                        if tries > ready_retries:
+                            break
+                        tries += 1
+                logger.info("Target %s is ready for exploit", system_config["name"])
+                setc.exploit_until_success(status_delay=exploit_check_delay,
+                                           status_checks=exploit_check_count,
+                                           tries=exploit_retries)
 
                 ########################################
                 ###          Pre Down Runners        ###
@@ -328,20 +358,20 @@ def main():
                 ########################################
                 ###          Pre Down Modules        ###
                 ########################################
-                if tp:
-                    if setc_type == "docker":
-                        tp.pre_down(setc.target, setc.target.name)
-                    else:
-                        #TODO: user docker client to pull the instance by name
-                        target = client.containers.get(system_config["settings"]["target_name"])
-                        tp.pre_down(target, system_config["name"])
+                with console.status(f"[bold]Cleaning up {system_config['name']}...[/bold]"):
+                    if tp:
+                        if setc_type == "docker":
+                            tp.pre_down(setc.target, system_config["name"])
+                        else:
+                            target = setc._get_target_container()
+                            tp.pre_down(target, system_config["name"])
 
+                    if not args.no_zeek:
+                        zeek.pcap_parse(system_config["name"])
+                        zeek.to_logstandard(system_config["name"])
 
-                if not args.no_zeek:
-                    zeek.pcap_parse(system_config["name"])
-                    zeek.to_logstandard(system_config["name"])
-
-                setc.cleanup_all()
+                    setc.cleanup_all()
+                logger.info("Cleanup complete for %s", system_config["name"])
 
                 ########################################
                 ###          Post Down Runners       ###
@@ -384,7 +414,7 @@ def main():
         if zeek:
             zeek.cleanup()
         if splunk:
-            splunk.cleanup()
+            splunk.cleanup(remove=args.cleanup_splunk)
 
 
 if __name__ == "__main__":

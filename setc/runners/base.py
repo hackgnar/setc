@@ -1,25 +1,40 @@
+from __future__ import annotations
+
 import logging
 import shlex
-import sys
 import time
+from abc import ABC, abstractmethod
+
 import docker
-from utils import safe_stop_remove
+import docker.models.containers
+import docker.models.networks
+import docker.models.volumes
+from rich.console import Console
+from utils import prefixed_name, safe_stop_remove
+
+console = Console(stderr=True)
 
 logger = logging.getLogger(__name__)
 
 
-class BaseRunner:
-    def __init__(self, docker_client, network_name="set_framework_net",
-                 volume_name="set_logs", target_name="target", 
-                 msf_image="metasploitframework/metasploit-framework:6.2.33"):
+class BaseRunner(ABC):
+    def __init__(self, docker_client: docker.DockerClient, network_name: str = "set_framework_net",
+                 volume_name: str = "set_logs", target_name: str = "target",
+                 msf_image: str = "metasploitframework/metasploit-framework:6.2.33",
+                 prefix: str = "") -> None:
         self.client=docker_client
         self.network=network_name
         self.volume=volume_name
         self.msf_image=msf_image
+        self.prefix=prefix
         self.target_name=target_name
         self.exploit_success_pattern="4444"
+        self.target_logs=None
 
-    def network_setup(self):
+    def _prefixed(self, name: str) -> str:
+        return prefixed_name(self.prefix, name)
+
+    def network_setup(self) -> docker.models.networks.Network:
         net = None
         networks = [i.name for i in self.client.networks.list()]
         if self.network in networks:
@@ -28,7 +43,7 @@ class BaseRunner:
             net = self.client.networks.create(self.network, driver="bridge")
         return net
 
-    def volume_setup(self):
+    def volume_setup(self) -> docker.models.volumes.Volume:
         vol = None
         vols = [i.name for i in self.client.volumes.list()]
         if self.volume in vols:
@@ -37,29 +52,31 @@ class BaseRunner:
             vol = self.client.volumes.create(name=self.volume)
         return vol
 
-    def target_setup(self):
+    @abstractmethod
+    def target_setup(self) -> None:
         pass
 
-    def target_cleanup(self):
+    @abstractmethod
+    def target_cleanup(self) -> None:
         pass
 
-    @staticmethod
-    def _progress_dot():
-        sys.stderr.write(".")
-        sys.stderr.flush()
+    def _run_tcpdump_container(self, pcap_name: str, attach_to: str) -> docker.models.containers.Container:
+        cmd = ["-U", "-v", "-w", f"/data/{pcap_name}/pcap/{pcap_name}.pcap"]
+        return self.client.containers.run(
+            "tcpdump", command=cmd, detach=True,
+            name="%s-tcpdump" % attach_to, privileged=True,
+            network="container:%s" % attach_to,
+            volumes={self.volume: {"bind": "/data", "mode": "rw"}})
 
-    @staticmethod
-    def _progress_end():
-        sys.stderr.write("\n")
-        sys.stderr.flush()
-
-    def tcpdump_setup(self):
+    @abstractmethod
+    def tcpdump_setup(self) -> None:
         pass
 
-    def tcpdump_cleanup(self):
+    @abstractmethod
+    def tcpdump_cleanup(self) -> None:
         pass
 
-    def attack_setup(self):
+    def attack_setup(self) -> None:
         #TODO: moigrate this over th the base class
         logger.debug("Starting attack system for %s", self.target_name)
         dk_attack = self.client.containers.run(self.msf_image,
@@ -67,21 +84,21 @@ class BaseRunner:
                                  network=self.network, tty=True)
         self.attack=dk_attack
 
-    def attack_cleanup(self):
+    def attack_cleanup(self) -> None:
         safe_stop_remove(self.attack, label="%s-attack" % self.target_name)
 
-    def setup_all(self):
+    def setup_all(self) -> None:
         self.network_setup()
         self.volume_setup()
         self.target_setup()
         self.tcpdump_setup()
         self.attack_setup()
 
-    def cleanup_all(self):
+    def cleanup_all(self) -> None:
         self.target_cleanup()
         self.attack_cleanup()
 
-    def exploit(self):
+    def exploit(self) -> None:
         cmd = "/usr/src/metasploit-framework/msfconsole"
         flag = "-x"
         args = """use %s; %s \
@@ -96,7 +113,7 @@ class BaseRunner:
         args = args % (self.msf_exploit, self.msf_options, self.target_name, "%s-attack" % self.target_name)
         result = self.attack.exec_run(cmd=[cmd, flag, args], tty=True, detach=True)
 
-    def exploit_success(self, pattern=4444):
+    def exploit_success(self, pattern: int = 4444) -> bool:
         #TODO: create config support for custom exploit estabilished pattern
         cmd = ["sh", "-c", f"netstat | grep {shlex.quote(str(pattern))} | grep ESTABLISHED"]
         try:
@@ -105,24 +122,46 @@ class BaseRunner:
             logger.warning("Could not check exploit status: %s", e)
             return False
         cmd_result = str(result.output)
-        self._progress_dot()
         for line in cmd_result.splitlines():
             if pattern in str(line) and "ESTABLISHED" in str(line):
-                self._progress_end()
-                logger.info("Exploit of %s success", self.target_name)
                 return True
         return False
 
-    def exploit_until_success(self, status_delay=3, status_checks=7, tries=4):
-        for i in range(tries):
-            self.exploit()
-            for i in range (status_checks):
-                if self.exploit_success(pattern=self.exploit_success_pattern):
-                    return True
-                time.sleep(status_delay)
-            self._progress_end()
-        logger.warning("Exploit failed or status unknown")
-        return False
+    def exploit_until_success(self, status_delay: int = 3, status_checks: int = 7, tries: int = 4) -> bool:
+        success = False
+        with console.status(f"Exploiting {self.target_name}..."):
+            for i in range(tries):
+                self.exploit()
+                for i in range (status_checks):
+                    if self.exploit_success(pattern=self.exploit_success_pattern):
+                        success = True
+                        break
+                    time.sleep(status_delay)
+                if success:
+                    break
+        if success:
+            logger.info("Exploit of %s success", self.target_name)
+        else:
+            logger.warning("Exploit failed or status unknown")
+        return success
 
-    def ready_to_exploit(self):
+    @abstractmethod
+    def _get_target_container(self) -> docker.models.containers.Container:
         pass
+
+    def ready_to_exploit(self, ready_delay: int = 5) -> bool:
+        if self.target_logs == None:
+            logger.debug("Checking if target %s is setup", self.target_name)
+        #temp solution
+        try:
+            target = self._get_target_container()
+            logs = target.logs()
+        except (docker.errors.NotFound, docker.errors.APIError) as e:
+            logger.warning("Could not get target logs: %s", e)
+            return False
+        if self.target_logs == logs:
+            return True
+        else:
+            self.target_logs = logs
+            time.sleep(ready_delay)
+        return False

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -5,14 +7,28 @@ import time
 import io
 import tarfile
 import shlex
+from typing import Any
+
 import docker
+import docker.models.containers
 
 logger = logging.getLogger(__name__)
+
+def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+	result = {}
+	for field_name, mapping in schema.items():
+		if isinstance(mapping, dict):
+			value = apply_schema(log, mapping)
+		else:
+			value = mapping(log)
+		if value is not None:
+			result[field_name] = value
+	return result
 
 #TODO: add hostnames to each log model
 #TODO: add a pre/post exploit field to each log model
 
-def parse_command(cmd):
+def parse_command(cmd: str) -> tuple[str, str, str, list[str], str]:
 	tmp = shlex.split(cmd)
 	abspath = ""
 	if os.path.basename(tmp[0]) == "rosetta" or os.path.basename(tmp[0]) == "qemu-i386" :
@@ -107,7 +123,7 @@ ocsf_process = {
 }
 
 class DockerProcessLogs:
-	def __init__(self, write_container, volume_name="set_logs"):
+	def __init__(self, write_container: docker.models.containers.Container, volume_name: str = "set_logs") -> None:
 		self.write_container=write_container
 		self.read_container=None
 		self.raw_logs = None
@@ -116,7 +132,7 @@ class DockerProcessLogs:
 		self.ecs=None
 		self.cim=None
 
-	def post_up(self, read_container, vuln_name):
+	def post_up(self, read_container: docker.models.containers.Container, vuln_name: str) -> None:
 		self.read_container=read_container
 		self.get_process_logs(read_container)
 		self.convert_to_cim()
@@ -126,7 +142,7 @@ class DockerProcessLogs:
 		self.write_to_volume("ecs", vuln_name)
 		self.write_to_volume("ocsf", vuln_name)
 
-	def pre_down(self, read_container, vuln_name):
+	def pre_down(self, read_container: docker.models.containers.Container, vuln_name: str) -> None:
 		self.read_container=read_container
 		self.get_process_logs(read_container)
 		self.convert_to_cim()
@@ -136,7 +152,7 @@ class DockerProcessLogs:
 		self.write_to_volume("ecs", vuln_name)
 		self.write_to_volume("ocsf", vuln_name)
 
-	def get_process_logs(self, read_container):
+	def get_process_logs(self, read_container: docker.models.containers.Container) -> None:
 		args = "o user,pid,ppid,pgid,sess,jobc,state,tt,time,etime,logname,%cpu,%mem,args"
 		try:
 			raw_logs = read_container.top(ps_args=args)
@@ -148,46 +164,16 @@ class DockerProcessLogs:
 		self.raw_logs=raw_logs
 		self.docker_logs=[dict(zip(raw_logs["Titles"],i)) for i in raw_logs["Processes"]]
 
-	def __procs_docker_to_ocsf(self, log, schema=ocsf_process):
-		flog = {}
-		for k, v in schema.items():
-			if type(v) == dict:
-				ocsf_value = self.__procs_docker_to_ocsf(log, schema=v)
-			else:
-				ocsf_value = v(log)
-			if ocsf_value != None:
-				flog[k] = ocsf_value
-		return flog
+	def convert_to_ocsf(self) -> None:
+		self.ocsf = [apply_schema(log, ocsf_process) for log in self.docker_logs]
 
-	def convert_to_ocsf(self):
-		ocsf_logs = []
-		for log in self.docker_logs:
-			ocsf_logs.append(self.__procs_docker_to_ocsf(log))
-		self.ocsf = ocsf_logs
+	def convert_to_ecs(self) -> None:
+		self.ecs = [apply_schema(log, ecs_process) for log in self.docker_logs]
 
-	def convert_to_ecs(self):
-		processes = []
-		for log in self.docker_logs:
-			flog = {}
-			for k, v in ecs_process.items():
-				ecs_value = v(log)
-				if ecs_value != None:
-					flog[k] = ecs_value
-			processes.append(flog)
-		self.ecs=processes
+	def convert_to_cim(self) -> None:
+		self.cim = [apply_schema(log, cim_endpoint_process) for log in self.docker_logs]
 
-	def convert_to_cim(self):
-		processes = []
-		for log in self.docker_logs:
-			flog = {}
-			for k, v in cim_endpoint_process.items():
-				cim_value = v(log)
-				if cim_value != None:
-					flog[k] = cim_value
-			processes.append(flog)
-		self.cim=processes
-
-	def write_to_volume(self, log_type, directory):
+	def write_to_volume(self, log_type: str, directory: str) -> None:
 		tar_fileobj = io.BytesIO()
 		with tarfile.open(fileobj=tar_fileobj, mode="w|") as tar:
 			my_content = json.dumps(getattr(self,log_type)).encode('utf-8')
