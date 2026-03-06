@@ -1,4 +1,4 @@
-FROM ubuntu
+FROM ubuntu:24.04
 
 RUN mkdir -p /data/logs
 RUN apt update

@@ -1,4 +1,4 @@
-FROM alpine
+FROM alpine:3.21
 
 VOLUME  [ "/data" ]
 RUN apk add --no-cache tcpdump coreutils
