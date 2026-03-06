@@ -26,7 +26,7 @@ class ZeekModule:
 
     def setup(self) -> None:
         """Start the persistent Zeek container on the shared volume and network."""
-        dk_zeek = self.client.containers.run("zeek/zeek", command="/bin/bash",
+        dk_zeek = self.client.containers.run("zeek/zeek:8.1.1", command="/bin/bash",
                                         detach=True, name=self._prefixed("zeek"),tty=True,
                                         network=self.network,
                                         volumes={self.volume:{'bind':'/data', 'mode':'rw'}})

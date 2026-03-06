@@ -32,7 +32,7 @@ class SplunkModule:
     def _find_existing(self) -> docker.models.containers.Container | None:
         """Find a running Splunk container already mounted to our volume."""
         for container in self.client.containers.list(all=True,
-                                                      filters={"ancestor": "splunk/splunk"}):
+                                                      filters={"ancestor": "splunk/splunk:10.2.1"}):
             mounts = container.attrs.get("Mounts", [])
             for m in mounts:
                 if m.get("Name") == self.volume:
@@ -50,7 +50,7 @@ class SplunkModule:
             self.splunk = existing
             self.setup_complete = True
             return
-        dk_splunk = self.client.containers.run("splunk/splunk", detach=True,
+        dk_splunk = self.client.containers.run("splunk/splunk:10.2.1", detach=True,
                                           name=self._prefixed("splunk"),
                                           volumes={self.volume:{'bind':'/data', 'mode':'rw'}},
                                           ports={'8000/tcp':8000}, tty=True,

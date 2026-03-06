@@ -95,7 +95,6 @@ class BaseRunner(ABC):
 
     def attack_setup(self) -> None:
         """Start the Metasploit attack container on the shared network."""
-        #TODO: moigrate this over th the base class
         logger.debug("Starting attack system for %s", self.target_name)
         dk_attack = self.client.containers.run(self.msf_image,
                                  detach=True, name="%s-attack" % self.target_name,
@@ -130,14 +129,12 @@ class BaseRunner(ABC):
             set AutoCheck false; \
             set ExitOnSession false; \
             exploit"""
-        #cant remember why the second arg is a blank string
         logger.debug("Running exploit for %s", self.target_name)
         args = args % (self.msf_exploit, self.msf_options, self.target_name, "%s-attack" % self.target_name)
         result = self.attack.exec_run(cmd=[cmd, flag, args], tty=True, detach=True)
 
     def exploit_success(self, pattern: str = "4444") -> bool:
         """Check if the exploit established a connection matching the given port pattern."""
-        #TODO: create config support for custom exploit estabilished pattern
         cmd = ["sh", "-c", f"netstat | grep {shlex.quote(str(pattern))} | grep ESTABLISHED"]
         try:
             result = self.attack.exec_run(cmd=cmd, tty=True)
@@ -183,7 +180,6 @@ class BaseRunner(ABC):
         """Return True when the target's log output has stabilized (container is ready)."""
         if self.target_logs == None:
             logger.debug("Checking if target %s is setup", self.target_name)
-        #temp solution
         try:
             target = self._get_target_container()
             logs = target.logs()

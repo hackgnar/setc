@@ -111,7 +111,7 @@ ocsf_http_from_zeek = {
     },
     "message": lambda x: "",
     "metadata": {
-        "version": lambda x: "1.3.0",
+        "version": lambda x: "1.4.0",
         "product": {
             "vendor_name": lambda x: "Unknown"
         }
@@ -188,7 +188,7 @@ ecs_network_from_zeek = {
     "network.protocol": lambda x: x.get("proto", "-")
 }
 
-#https://schema.ocsf.io/1.3.0/classes/network_activity?extensions=
+#https://schema.ocsf.io/1.4.0/classes/network_activity?extensions=
 #interestingly there is now packets, bytes, protocol, direction, etc????
 ocsf_network_from_zeek = {
   "time": lambda x: x.get("ts", time.time()), #Required
@@ -203,7 +203,7 @@ ocsf_network_from_zeek = {
   "severity_id": lambda x: "1", #Required
   "severity": lambda x: "Informational",
   "metadata": { #Required
-    "version": lambda x: "1.3.0", #Required
+    "version": lambda x: "1.4.0", #Required
     "product": { #Required
       "vendor_name": lambda x: "Unknown" #Required
     }

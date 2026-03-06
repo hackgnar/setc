@@ -338,7 +338,7 @@ class TestZeekNetworkConversions:
         assert "src_endpoint" in result
         assert result["src_endpoint"]["ip"] == "10.0.0.1"
         assert "metadata" in result
-        assert result["metadata"]["version"] == "1.3.0"
+        assert result["metadata"]["version"] == "1.4.0"
 
 
 # ===================================================================
