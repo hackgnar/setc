@@ -17,6 +17,7 @@ from modules.splunk import SplunkModule
 from modules.postgres import PostgresModule
 from modules.elasticsearch import ElasticsearchModule
 from modules.docker_process_logger import DockerProcessLogs
+from modules.falco import FalcoModule
 
 
 def validate_config(config: Any) -> list[str]:
@@ -150,6 +151,9 @@ def parse_args() -> tuple[argparse.Namespace, list[dict[str, Any]]]:
     module_group.add_argument("--elk",
                               help="Create an Elasticsearch instance with Kibana and populate it with SETC logs. Kibana UI available at http://localhost:5601.",
                               action='store_true')
+    module_group.add_argument("--falco",
+                              help="Run Falco for runtime syscall monitoring during exploitation.",
+                              action='store_true')
     module_group.add_argument("--no-zeek",
                               help="Disable zeek pcap log parsing (enabled by default).",
                               action='store_true')
@@ -252,6 +256,7 @@ def main() -> None:
     splunk = None
     postgres = None
     elasticsearch = None
+    falco = None
 
     try:
         ########################################
@@ -315,6 +320,11 @@ def main() -> None:
                                                 network_name=args.network,
                                                 elasticsearch_password=args.password, prefix=prefix)
             elasticsearch.setup()
+
+        if args.falco:
+            falco = FalcoModule(client, volume_name=args.volume,
+                                network_name=args.network, prefix=prefix)
+            falco.setup()
 
 
         ########################################
@@ -458,6 +468,13 @@ def main() -> None:
                             target = setc._get_target_container()
                             tp.pre_down(target, system_config["name"])
 
+                    if falco and falco.is_ready():
+                        target_containers = [setc.target_name]
+                        if setc_type == "compose" and hasattr(setc, 'wdocker'):
+                            target_containers = [c.name for c in setc.wdocker.compose.ps()]
+                        write_cont = zeek.zeek if zeek else falco.falco
+                        falco.extract_events(system_config["name"], target_containers, write_cont)
+
                     if not args.no_zeek:
                         zeek.pcap_parse(system_config["name"])
                         zeek.to_logstandard(system_config["name"])
@@ -523,6 +540,8 @@ def main() -> None:
             postgres.cleanup(remove=args.cleanup_postgres)
         if elasticsearch:
             elasticsearch.cleanup(remove=args.cleanup_elk)
+        if falco:
+            falco.cleanup()
 
 
 if __name__ == "__main__":

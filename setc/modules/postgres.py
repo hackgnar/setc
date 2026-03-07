@@ -19,6 +19,7 @@ TABLES = {
     "ocsf_logs": "event JSONB",
     "cef_logs": "event TEXT",
     "udm_logs": "event JSONB",
+    "falco_logs": "event JSONB",
 }
 
 # Maps format directory names (as written under /data/<cve>/) to (table_name, is_json).
@@ -29,6 +30,7 @@ FORMAT_TABLE = {
     "ocsf": ("ocsf_logs", True),
     "cef": ("cef_logs", False),
     "udm": ("udm_logs", True),
+    "falco": ("falco_logs", True),
 }
 
 

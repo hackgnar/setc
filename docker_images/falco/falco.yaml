@@ -1,0 +1,35 @@
+engine:
+  kind: modern_ebpf
+
+base_syscalls:
+  custom_set: []
+  repair: false
+  all: true
+
+load_plugins: [container]
+
+plugins:
+  - name: container
+    library_path: libcontainer.so
+    init_config:
+      label_max_len: 100
+      with_size: false
+
+json_output: true
+json_include_output_property: true
+json_include_output_fields_property: true
+json_include_tags_property: true
+
+file_output:
+  enabled: true
+  keep_alive: true
+  filename: /falco_output/falco_events.jsonl
+
+stdout_output:
+  enabled: false
+
+priority: NOTICE
+
+rules_files:
+  - /etc/falco/falco_rules.yaml
+  - /etc/falco/falco_rules.local.yaml

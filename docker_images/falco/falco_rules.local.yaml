@@ -1,0 +1,38 @@
+- rule: SETC Process Execution
+  desc: All process executions in containers
+  condition: spawned_process and container.id != host
+  output: >
+    Process spawned
+    (container_id=%container.id container_name=%container.name
+     proc_name=%proc.name proc_pid=%proc.pid proc_ppid=%proc.ppid
+     proc_cmdline=%proc.cmdline user_name=%user.name
+     proc_exepath=%proc.exepath evt_type=%evt.type)
+  priority: NOTICE
+  tags: [process, setc]
+
+- rule: SETC Network Connection
+  desc: Network connections in containers
+  condition: >
+    (evt.type in (connect, accept)) and fd.typechar='4' and
+    container.id != host
+  output: >
+    Network connection
+    (container_id=%container.id container_name=%container.name
+     proc_name=%proc.name fd_name=%fd.name
+     fd_sip=%fd.sip fd_cip=%fd.cip fd_sport=%fd.sport fd_cport=%fd.cport
+     evt_type=%evt.type user_name=%user.name)
+  priority: NOTICE
+  tags: [network, setc]
+
+- rule: SETC File Write
+  desc: File writes in containers
+  condition: >
+    (evt.type in (write, writev, pwritev)) and fd.typechar='f' and
+    container.id != host
+  output: >
+    File write
+    (container_id=%container.id container_name=%container.name
+     proc_name=%proc.name fd_name=%fd.name user_name=%user.name
+     evt_type=%evt.type proc_cmdline=%proc.cmdline)
+  priority: NOTICE
+  tags: [file, setc]
