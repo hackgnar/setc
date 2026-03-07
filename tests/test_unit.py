@@ -24,6 +24,7 @@ from modules.docker_process_logger import (  # noqa: E402
     ecs_process,
     ocsf_process,
     cef_process,
+    udm_process,
     format_cef_line as process_format_cef_line,
 )
 from utils import prefixed_name  # noqa: E402
@@ -511,3 +512,55 @@ class TestCefProcessSchema:
         assert "suser=root" in line
         assert "act=allowed" in line
         assert "cat=process" in line
+
+
+# ===================================================================
+# 8. UDM conversions
+# ===================================================================
+class TestZeekUdmConversions:
+    """Tests for zeek log → UDM conversions."""
+
+    def test_zeek_to_udm_http(self):
+        result = lfc.zeek_to_udm(SAMPLE_ZEEK_HTTP)
+        assert result["metadata"]["event_type"] == "NETWORK_HTTP"
+        assert result["metadata"]["vendor_name"] == "SETC"
+        assert result["principal"]["ip"] == ["10.0.0.1"]
+        assert result["principal"]["port"] == 54321
+        assert result["target"]["ip"] == ["10.0.0.2"]
+        assert result["target"]["port"] == 80
+        assert result["target"]["hostname"] == "example.com"
+        assert result["network"]["http"]["method"] == "GET"
+        assert result["network"]["http"]["responseCode"] == 200
+        assert result["network"]["http"]["userAgent"] == "TestAgent/1.0"
+        assert result["network"]["receivedBytes"] == 512
+        assert result["network"]["sentBytes"] == 0
+        assert result["network"]["applicationProtocol"] == "HTTP"
+        assert result["security_result"]["action"] == "ALLOW"
+
+    def test_zeek_to_network_udm(self):
+        result = lfc.zeek_to_network_udm(SAMPLE_ZEEK_CONN)
+        assert result["metadata"]["event_type"] == "NETWORK_CONNECTION"
+        assert result["metadata"]["vendor_name"] == "SETC"
+        assert result["principal"]["ip"] == ["10.0.0.1"]
+        assert result["target"]["ip"] == ["10.0.0.2"]
+        assert result["target"]["port"] == 443
+        assert result["network"]["ipProtocol"] == "TCP"
+        assert result["network"]["applicationProtocol"] == "ssl"
+        assert result["network"]["sentBytes"] == 100
+        assert result["network"]["receivedBytes"] == 200
+        assert result["security_result"]["action"] == "ALLOW"
+
+
+class TestUdmProcessSchema:
+    """Tests for UDM process schema conversion."""
+
+    def test_udm_process_output(self):
+        result = process_apply_schema(SAMPLE_PROCESS, udm_process)
+        assert result["metadata"]["event_type"] == "PROCESS_LAUNCH"
+        assert result["metadata"]["vendor_name"] == "SETC"
+        assert result["principal"]["user"]["userid"] == "root"
+        assert result["target"]["process"]["pid"] == "1"
+        assert result["target"]["process"]["parentProcess"]["pid"] == "0"
+        assert "python3" in result["target"]["process"]["commandLine"]
+        assert result["target"]["process"]["file"]["full_path"] is not None
+        assert result["security_result"]["action"] == "ALLOW"

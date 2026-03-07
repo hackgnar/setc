@@ -166,6 +166,36 @@ def format_cef_line(header: tuple, extensions: dict[str, Any]) -> str:
 			ext_parts.append("{}={}".format(k, cef_escape_extension(str(v))))
 	return hdr + "|" + " ".join(ext_parts)
 
+udm_process = {
+	"metadata": {
+		"event_timestamp": lambda x: x.get("ts", time.time()),
+		"event_type": lambda x: "PROCESS_LAUNCH",
+		"vendor_name": lambda x: "SETC",
+		"product_name": lambda x: "setc",
+		"product_version": lambda x: "1.0",
+	},
+	"principal": {
+		"user": {
+			"userid": lambda x: x.get("USER"),
+		},
+	},
+	"target": {
+		"process": {
+			"pid": lambda x: x.get("PID"),
+			"parentProcess": {
+				"pid": lambda x: x.get("PPID"),
+			},
+			"commandLine": lambda x: parse_command(x.get("COMMAND")).fullcmd,
+			"file": {
+				"full_path": lambda x: parse_command(x.get("COMMAND")).abspath,
+			},
+		},
+	},
+	"security_result": {
+		"action": lambda x: "ALLOW",
+	},
+}
+
 cef_process = {
 	"rt": lambda x: int(x.get("ts", time.time()) * 1000),
 	"sproc": lambda x: parse_command(x.get("COMMAND")).filename,
@@ -195,6 +225,7 @@ class DockerProcessLogs:
 		self.ecs=None
 		self.cim=None
 		self.cef = None
+		self.udm = None
 
 	def post_up(self, read_container: docker.models.containers.Container, vuln_name: str) -> None:
 		"""Snapshot process table after target comes up, convert, and write logs."""
@@ -204,10 +235,12 @@ class DockerProcessLogs:
 		self.convert_to_ecs()
 		self.convert_to_ocsf()
 		self.convert_to_cef()
+		self.convert_to_udm()
 		self.write_to_volume("cim", vuln_name)
 		self.write_to_volume("ecs", vuln_name)
 		self.write_to_volume("ocsf", vuln_name)
 		self.write_to_volume("cef", vuln_name)
+		self.write_to_volume("udm", vuln_name)
 
 	def pre_down(self, read_container: docker.models.containers.Container, vuln_name: str) -> None:
 		"""Snapshot process table before target goes down, convert, and write logs."""
@@ -217,10 +250,12 @@ class DockerProcessLogs:
 		self.convert_to_ecs()
 		self.convert_to_ocsf()
 		self.convert_to_cef()
+		self.convert_to_udm()
 		self.write_to_volume("cim", vuln_name)
 		self.write_to_volume("ecs", vuln_name)
 		self.write_to_volume("ocsf", vuln_name)
 		self.write_to_volume("cef", vuln_name)
+		self.write_to_volume("udm", vuln_name)
 
 	def get_process_logs(self, read_container: docker.models.containers.Container) -> None:
 		"""Run 'docker top' on the container and store the process table as dicts."""
@@ -246,6 +281,10 @@ class DockerProcessLogs:
 	def convert_to_cim(self) -> None:
 		"""Convert stored process logs to CIM format."""
 		self.cim = [apply_schema(log, cim_endpoint_process) for log in self.docker_logs]
+
+	def convert_to_udm(self) -> None:
+		"""Convert stored process logs to UDM format."""
+		self.udm = [apply_schema(log, udm_process) for log in self.docker_logs]
 
 	def convert_to_cef(self) -> None:
 		"""Convert stored process logs to CEF format."""

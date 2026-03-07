@@ -292,6 +292,75 @@ def zeek_to_network_cef(log: dict[str, Any]) -> str:
     extensions = apply_schema(log, cef_network_from_zeek)
     return format_cef_line(header, extensions)
 
+udm_http_from_zeek = {
+    "metadata": {
+        "event_timestamp": lambda x: x.get("ts", 0),
+        "event_type": lambda x: "NETWORK_HTTP",
+        "vendor_name": lambda x: "SETC",
+        "product_name": lambda x: "setc",
+        "product_version": lambda x: "1.0",
+    },
+    "principal": {
+        "ip": lambda x: [x.get("id.orig_h", "")],
+        "port": lambda x: x.get("id.orig_p", 0),
+    },
+    "target": {
+        "hostname": lambda x: x.get("host", ""),
+        "ip": lambda x: [x.get("id.resp_h", "")],
+        "port": lambda x: x.get("id.resp_p", 0),
+        "url": lambda x: x.get("uri", ""),
+    },
+    "network": {
+        "http": {
+            "method": lambda x: x.get("method", ""),
+            "responseCode": lambda x: x.get("status_code", 0),
+            "userAgent": lambda x: x.get("user_agent", ""),
+            "referralUrl": lambda x: x.get("referrer", ""),
+        },
+        "sentBytes": lambda x: x.get("request_body_len", 0),
+        "receivedBytes": lambda x: x.get("response_body_len", 0),
+        "applicationProtocol": lambda x: "HTTP",
+    },
+    "security_result": {
+        "action": lambda x: "ALLOW",
+    },
+}
+
+def zeek_to_udm(log: dict[str, Any]) -> dict[str, Any]:
+    """Convert a Zeek HTTP log entry to UDM format."""
+    return apply_schema(log, udm_http_from_zeek)
+
+udm_network_from_zeek = {
+    "metadata": {
+        "event_timestamp": lambda x: x.get("ts", 0),
+        "event_type": lambda x: "NETWORK_CONNECTION",
+        "vendor_name": lambda x: "SETC",
+        "product_name": lambda x: "setc",
+        "product_version": lambda x: "1.0",
+    },
+    "principal": {
+        "ip": lambda x: [x.get("id.orig_h", "")],
+        "port": lambda x: x.get("id.orig_p", 0),
+    },
+    "target": {
+        "ip": lambda x: [x.get("id.resp_h", "")],
+        "port": lambda x: x.get("id.resp_p", 0),
+    },
+    "network": {
+        "ipProtocol": lambda x: x.get("proto", "").upper(),
+        "applicationProtocol": lambda x: x.get("service", ""),
+        "sentBytes": lambda x: x.get("orig_bytes", 0),
+        "receivedBytes": lambda x: x.get("resp_bytes", 0),
+    },
+    "security_result": {
+        "action": lambda x: "ALLOW",
+    },
+}
+
+def zeek_to_network_udm(log: dict[str, Any]) -> dict[str, Any]:
+    """Convert a Zeek conn log entry to UDM format."""
+    return apply_schema(log, udm_network_from_zeek)
+
 def zeek_to_network_ecs(log: dict[str, Any]) -> dict[str, Any]:
     """Convert a Zeek conn log entry to ECS network format."""
     return apply_schema(log, ecs_network_from_zeek)
@@ -330,6 +399,7 @@ if __name__ == "__main__":
     ocsf_logs = []
     ecs_logs = []
     cef_lines = []
+    udm_logs = []
     http_files = find_all("http.log", base_dir)
     for logfile in http_files:
         zeek_json = ""
@@ -343,6 +413,7 @@ if __name__ == "__main__":
             ocsf_log = zeek_to_ocsf(zeek_json)
             ocsf_logs.append(ocsf_log)
             cef_lines.append(zeek_to_cef(zeek_json))
+            udm_logs.append(zeek_to_udm(zeek_json))
         r.close()
     w = open(os.path.join(output_dir, "cim", "cim_http.log"), 'w')
     json.dump(cim_logs, w)
@@ -358,12 +429,16 @@ if __name__ == "__main__":
     if cef_lines:
         w.write("\n")
     w.close()
+    w = open(os.path.join(output_dir, "udm", "udm_http.log"), 'w')
+    json.dump(udm_logs, w)
+    w.close()
 
     # Network
     cim_logs = []
     ocsf_logs = []
     ecs_logs = []
     cef_lines = []
+    udm_logs = []
     net_files = find_all("conn.log", base_dir)
     for logfile in net_files:
         zeek_json = ""
@@ -377,6 +452,7 @@ if __name__ == "__main__":
             ocsf_log = zeek_to_network_ocsf(zeek_json)
             ocsf_logs.append(ocsf_log)
             cef_lines.append(zeek_to_network_cef(zeek_json))
+            udm_logs.append(zeek_to_network_udm(zeek_json))
         r.close()
     w = open(os.path.join(output_dir, "cim", "cim_network.log"), 'w')
     json.dump(cim_logs, w)
@@ -391,4 +467,7 @@ if __name__ == "__main__":
     w.write("\n".join(cef_lines))
     if cef_lines:
         w.write("\n")
+    w.close()
+    w = open(os.path.join(output_dir, "udm", "udm_network.log"), 'w')
+    json.dump(udm_logs, w)
     w.close()
