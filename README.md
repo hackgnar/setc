@@ -92,6 +92,7 @@ Each config is a JSON array of exploit entries. SETC supports two target modes:
 | `target_image` | One of these | Docker image for single-container targets |
 | `yml_file` + `target_name` | One of these | Docker Compose file + target container name |
 | `exploit_options` | No | Additional MSF console commands (semicolon-separated) |
+| `exploit_mode` | No | `"cli"` (default) or `"rpc"` for Metasploit RPC-based exploitation |
 | `exploit_success_pattern` | No | Regex pattern to detect success (default: checks for port 4444) |
 | `target_delay` | No | Seconds to wait after starting the target (default: 0) |
 | `exploit_retries` | No | Retry count before giving up (default: 4) |
@@ -164,6 +165,30 @@ usage: setc [-h] [-v] [-p PASSWORD] [--volume VOLUME] [--network NETWORK]
 | `--cleanup_splunk` | Remove Splunk container after completion |
 | `--cleanup_postgres` | Remove PostgreSQL container after completion |
 | `--cleanup_elk` | Remove Elasticsearch and Kibana containers after completion |
+
+### RPC exploit mode
+
+By default SETC drives Metasploit via `msfconsole -x` (CLI mode). Setting `"exploit_mode": "rpc"` in a config entry switches to the MSGRPC API via `pymetasploit3`, which provides:
+
+- **Structured exploit execution** — `module.execute()` returns a job ID
+- **Reliable success detection** — checks `client.sessions.list` for actual Meterpreter/shell sessions instead of grepping `netstat`
+- **Job tracking** — active jobs are visible via `client.jobs.list`
+
+```json
+[
+    {
+        "name": "CVE-2018-11776",
+        "settings": {
+            "description": "Struts2 OGNL injection RCE",
+            "target_image": "vulhub/struts2:2.5.25",
+            "exploit": "multi/http/struts2_multi_eval_ognl",
+            "exploit_mode": "rpc"
+        }
+    }
+]
+```
+
+RPC mode uses the same Metasploit Docker image — it starts `msfrpcd` instead of `msfconsole`. The `pymetasploit3` dependency is installed via `pip install -r requirements.txt`.
 
 ### Manual exploit mode
 

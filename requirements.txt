@@ -3,3 +3,4 @@ psycopg2-binary
 python-on-whales==0.74.0
 rich>=13.0
 elasticsearch>=9.0
+pymetasploit3>=1.0.6

@@ -10,6 +10,8 @@ from typing import Any
 from rich.console import Console
 from runners.docker_msf_cli import DockerMsfCli
 from runners.docker_compose_msf_cli import DockerComposeMsfCli
+from runners.docker_msf_rpc import DockerMsfRpc
+from runners.docker_compose_msf_rpc import DockerComposeMsfRpc
 from modules.zeek import ZeekModule
 from modules.splunk import SplunkModule
 from modules.postgres import PostgresModule
@@ -96,6 +98,10 @@ def validate_config(config: Any) -> list[str]:
         for field in ("exploit_options", "exploit_success_pattern"):
             if field in s and not isinstance(s[field], str):
                 errors.append(f"{prefix}: '{field}' must be a string.")
+
+        if "exploit_mode" in s:
+            if not isinstance(s["exploit_mode"], str) or s["exploit_mode"] not in ("cli", "rpc"):
+                errors.append(f"{prefix}: 'exploit_mode' must be 'cli' or 'rpc'.")
 
     return errors
 
@@ -344,28 +350,49 @@ def main() -> None:
                 # Detect manual mode: no exploit field or empty string
                 manual = not system_config["settings"].get("exploit")
                 msf_exploit = system_config["settings"].get("exploit", "")
+                exploit_mode = system_config["settings"].get("exploit_mode", "cli")
 
                 setc = None
                 setc_type = None
                 if "yml_file" in system_config["settings"]:
-                    setc = DockerComposeMsfCli(client,
-                                               vuln_name=system_config["name"],
-                                               target_name=system_config["settings"]["target_name"],
-                                               target_yml=system_config["settings"]["yml_file"],
-                                               msf_exploit=msf_exploit,
-                                               msf_options=msf_options,
-                                               msf_image=args.msf,
-                                               prefix=prefix)
+                    if exploit_mode == "rpc":
+                        setc = DockerComposeMsfRpc(client,
+                                                   vuln_name=system_config["name"],
+                                                   target_name=system_config["settings"]["target_name"],
+                                                   target_yml=system_config["settings"]["yml_file"],
+                                                   msf_exploit=msf_exploit,
+                                                   msf_options=msf_options,
+                                                   msf_image=args.msf,
+                                                   prefix=prefix)
+                    else:
+                        setc = DockerComposeMsfCli(client,
+                                                   vuln_name=system_config["name"],
+                                                   target_name=system_config["settings"]["target_name"],
+                                                   target_yml=system_config["settings"]["yml_file"],
+                                                   msf_exploit=msf_exploit,
+                                                   msf_options=msf_options,
+                                                   msf_image=args.msf,
+                                                   prefix=prefix)
                     setc_type="compose"
                 else:
-                    setc = DockerMsfCli(client,
-                                        name = system_config["name"],
-                                        target_image=system_config["settings"]["target_image"],
-                                        msf_exploit=msf_exploit,
-                                        msf_options=msf_options,
-                                        delay=delay,
-                                        msf_image=args.msf,
-                                        prefix=prefix)
+                    if exploit_mode == "rpc":
+                        setc = DockerMsfRpc(client,
+                                            name=system_config["name"],
+                                            target_image=system_config["settings"]["target_image"],
+                                            msf_exploit=msf_exploit,
+                                            msf_options=msf_options,
+                                            delay=delay,
+                                            msf_image=args.msf,
+                                            prefix=prefix)
+                    else:
+                        setc = DockerMsfCli(client,
+                                            name=system_config["name"],
+                                            target_image=system_config["settings"]["target_image"],
+                                            msf_exploit=msf_exploit,
+                                            msf_options=msf_options,
+                                            delay=delay,
+                                            msf_image=args.msf,
+                                            prefix=prefix)
                     setc_type="docker"
                 #Note: Trying the pattern match passing a different way to cut down on class arguments
                 if "exploit_success_pattern" in system_config["settings"]:

@@ -626,3 +626,59 @@ class TestElasticsearchModule:
         for fmt_dir, (index_name, is_json) in INDEX_MAP.items():
             if fmt_dir != "cef":
                 assert is_json is True, f"{fmt_dir} should be JSON"
+
+
+# ===================================================================
+# 11. exploit_mode validation
+# ===================================================================
+class TestExploitModeValidation:
+    """Tests for exploit_mode config validation."""
+
+    def _minimal_docker(self, **settings_overrides: Any) -> list[dict]:
+        settings: dict[str, Any] = {
+            "description": "A test vuln",
+            "exploit": "exploit/test",
+            "target_image": "vuln:latest",
+        }
+        settings.update(settings_overrides)
+        return [{"name": "test-vuln", "settings": settings}]
+
+    def test_exploit_mode_cli(self):
+        assert validate_config(self._minimal_docker(exploit_mode="cli")) == []
+
+    def test_exploit_mode_rpc(self):
+        assert validate_config(self._minimal_docker(exploit_mode="rpc")) == []
+
+    def test_exploit_mode_invalid(self):
+        errors = validate_config(self._minimal_docker(exploit_mode="foo"))
+        assert any("exploit_mode" in e for e in errors)
+
+    def test_exploit_mode_wrong_type(self):
+        errors = validate_config(self._minimal_docker(exploit_mode=123))
+        assert any("exploit_mode" in e for e in errors)
+
+
+# ===================================================================
+# 12. _parse_msf_options()
+# ===================================================================
+from runners.base import BaseRunner  # noqa: E402
+
+
+class TestParseMsfOptions:
+    """Tests for BaseRunner._parse_msf_options()."""
+
+    def test_parse_basic(self):
+        assert BaseRunner._parse_msf_options("set RPORT 9080;") == {"RPORT": "9080"}
+
+    def test_parse_multiple(self):
+        result = BaseRunner._parse_msf_options("set PAYLOAD cmd/unix/reverse_bash;set RPORT 9080;")
+        assert result == {"PAYLOAD": "cmd/unix/reverse_bash", "RPORT": "9080"}
+
+    def test_parse_empty(self):
+        assert BaseRunner._parse_msf_options("") == {}
+
+    def test_parse_no_trailing_semicolon(self):
+        assert BaseRunner._parse_msf_options("set RPORT 9080") == {"RPORT": "9080"}
+
+    def test_parse_ignores_non_set(self):
+        assert BaseRunner._parse_msf_options("exploit;set RPORT 80;") == {"RPORT": "80"}

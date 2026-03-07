@@ -94,6 +94,13 @@
             "title": "Ready Check Retries",
             "description": "Number of readiness checks before giving up. Default: 5.",
             "minimum": 0
+          },
+          "exploit_mode": {
+            "type": "string",
+            "enum": ["cli", "rpc"],
+            "title": "Exploit Mode",
+            "description": "How to interact with Metasploit. 'cli' uses msfconsole -x (default). 'rpc' uses the MSGRPC API for structured job/session tracking.",
+            "default": "cli"
           }
         },
         "oneOf": [

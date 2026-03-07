@@ -1,0 +1,54 @@
+[
+    {"name":"CVE-2018-11776",
+        "settings": {
+            "description":"Struts2 OGNL injection RCE",
+            "target_image":"vulhub/struts2:2.5.25",
+            "exploit": "multi/http/struts2_multi_eval_ognl",
+            "exploit_mode": "rpc"
+        }
+    },
+    {"name":"CVE-2022-0543",
+        "settings": {
+            "description":"Redis Lua RCE",
+            "target_image":"vulhub/redis:5.0.7",
+            "exploit": "exploit/linux/redis/redis_debian_sandbox_escape",
+            "exploit_mode": "rpc"
+        }
+    },
+    {"name":"CVE-2021-3129",
+        "settings": {
+            "description":"Laravel debug RCE",
+            "target_image":"vulhub/laravel:8.4.2",
+            "exploit": "exploit/multi/php/ignition_laravel_debug_rce",
+            "exploit_mode": "rpc"
+        }
+    },
+    {"name":"CVE-2014-6271",
+        "settings": {
+            "description":"Apache CGI shellshock using user agent",
+            "yml_file":"$VULN_PATH/bash/CVE-2014-6271/docker-compose.yml",
+            "target_name":"setc-web-1",
+            "exploit": "multi/http/apache_mod_cgi_bash_env_exec",
+            "exploit_options":"set TARGETURI /victim.cgi;",
+            "exploit_mode": "rpc"
+        }
+    },
+    {"name":"CVE-2012-1823",
+        "settings": {
+            "description":"PHP CGI Argument Injection",
+            "yml_file":"$VULN_PATH/php/CVE-2012-1823/docker-compose.yml",
+            "target_name":"setc-php-1",
+            "exploit": "multi/http/php_cgi_arg_injection",
+            "exploit_mode": "rpc"
+        }
+    },
+    {"name":"CVE-2019-17558",
+        "settings": {
+            "description":"Apache Solr Remote Code Execution via Velocity Template",
+            "yml_file":"$VULN_PATH/solr/CVE-2019-17558/docker-compose.yml",
+            "target_name":"setc-solr-1",
+            "exploit": "multi/http/solr_velocity_rce",
+            "exploit_mode": "rpc"
+        }
+    }
+]

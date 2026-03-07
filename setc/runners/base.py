@@ -180,6 +180,61 @@ class BaseRunner(ABC):
     def _get_target_container(self) -> docker.models.containers.Container:
         """Return the Docker container object for the vulnerable target."""
 
+    @staticmethod
+    def _parse_msf_options(options_str: str) -> dict:
+        """Parse 'set KEY value;set KEY2 value2;' into {KEY: value, KEY2: value2}."""
+        opts = {}
+        for part in options_str.split(";"):
+            part = part.strip()
+            if part.lower().startswith("set "):
+                tokens = part.split(None, 2)  # "set", KEY, VALUE
+                if len(tokens) == 3:
+                    opts[tokens[1]] = tokens[2]
+        return opts
+
+    def _wait_for_msfrpc(self, container, password, port=55552, timeout=60):
+        """Poll the MSGRPC port inside a container until MsfRpcClient connects.
+
+        Returns an MsfRpcClient instance.
+        Raises TimeoutError if msfrpcd doesn't respond within timeout.
+        """
+        from pymetasploit3.msfrpc import MsfRpcClient
+
+        container.reload()
+        container_ip = container.attrs['NetworkSettings']['Networks'][self.network]['IPAddress']
+
+        deadline = time.time() + timeout
+        last_err = None
+        # Suppress noisy retry/urllib3 warnings while polling for msfrpcd
+        retry_logger = logging.getLogger("retry.api")
+        urllib3_logger = logging.getLogger("urllib3")
+        old_retry_level = retry_logger.level
+        old_urllib3_level = urllib3_logger.level
+        retry_logger.setLevel(logging.CRITICAL)
+        urllib3_logger.setLevel(logging.CRITICAL)
+        try:
+            with console.status(f"[bold]Connecting to msfrpcd ({container_ip}:{port})...[/bold]"):
+                while time.time() < deadline:
+                    try:
+                        client = MsfRpcClient(password, server=container_ip, port=port, ssl=False)
+                    except Exception as e:
+                        last_err = e
+                        time.sleep(2)
+                        continue
+                    # Connected — break out so the spinner clears before we log
+                    break
+                else:
+                    client = None
+        finally:
+            retry_logger.setLevel(old_retry_level)
+            urllib3_logger.setLevel(old_urllib3_level)
+        if client is not None:
+            logger.info("Connected to msfrpcd")
+            return client
+        raise TimeoutError(
+            f"msfrpcd not ready after {timeout}s at {container_ip}:{port}: {last_err}"
+        )
+
     def ready_to_exploit(self, ready_delay: int = 5) -> bool:
         """Return True when the target's log output has stabilized (container is ready)."""
         if self.target_logs == None:
