@@ -1,6 +1,6 @@
 # SETC: Security Exploit Telemetry Collection
 
-SETC automates vulnerability exploitation in Docker containers, captures network traffic and system telemetry, and converts logs to standard formats (CIM, OCSF, ECS). It produces repeatable, on-demand exploit telemetry for security research, tooling development, and dataset generation.
+SETC automates vulnerability exploitation in Docker containers, captures network traffic and system telemetry, and converts logs to standard formats (CIM, ECS, OCSF, CEF, UDM). It produces repeatable, on-demand exploit telemetry for security research, tooling development, and dataset generation.
 
 For the full research background, see the [arXiv preprint](https://arxiv.org/pdf/2406.05942), the published [IEEE CARS 2024 paper](https://ieeexplore.ieee.org/document/10778761), and the [doctoral dissertation](https://scholar.dsu.edu/theses/501/).
 
@@ -42,10 +42,10 @@ Config JSON
 5. Zeek parses captured PCAPs into structured logs
   |
   v
-6. Convert logs to CIM, ECS, and OCSF formats
+6. Convert logs to CIM, ECS, OCSF, CEF, and UDM formats
   |
   v
-7. Output to Docker volume (and optionally Splunk)
+7. Output to Docker volume (and optionally Splunk, PostgreSQL, or ELK)
 ```
 
 ## Configuration
@@ -107,7 +107,7 @@ check-jsonschema --schemafile setc_config_schema.json example_configurations/doc
 
 ## Output
 
-SETC writes all telemetry to a Docker volume (`set_logs` by default). Each CVE gets its own directory:
+SETC writes all telemetry to a Docker volume (`set_logs` by default). Logs are converted to five standard formats: Splunk CIM, Elastic Common Schema (ECS), OCSF, ArcSight CEF, and Google Chronicle UDM. Each CVE gets its own directory:
 
 ```
 set_logs/
@@ -126,14 +126,23 @@ set_logs/
       ocsf_http.log           # OCSF 1.4.0 HTTP Activity
       ocsf_network.log        # OCSF 1.4.0 Network Activity
       ocsf_process_*.log      # OCSF Process Query
+    cef/
+      cef_http.log            # ArcSight CEF HTTP events
+      cef_network.log         # ArcSight CEF network events
+      cef_process_*.log       # CEF process events
+    udm/
+      udm_http.log            # Google Chronicle UDM HTTP
+      udm_network.log         # Google Chronicle UDM network
+      udm_process_*.log       # UDM process events
 ```
 
 ## CLI Reference
 
 ```
 usage: setc [-h] [-v] [-p PASSWORD] [--volume VOLUME] [--network NETWORK]
-            [--msf MSF] [--prefix PREFIX] [--splunk] [--no-zeek]
-            [--cleanup_network] [--cleanup_volume] [--cleanup_splunk]
+            [--msf MSF] [--prefix PREFIX] [--splunk] [--postgres] [--elk]
+            [--no-zeek] [--cleanup_network] [--cleanup_volume]
+            [--cleanup_splunk] [--cleanup_postgres] [--cleanup_elk]
             config
 ```
 
@@ -147,10 +156,14 @@ usage: setc [-h] [-v] [-p PASSWORD] [--volume VOLUME] [--network NETWORK]
 | `--msf` | Override the Metasploit Docker image |
 | `--prefix` | Session prefix for container names (auto-generated if omitted) |
 | `--splunk` | Launch a Splunk instance and ingest logs |
+| `--postgres` | Launch a PostgreSQL instance and ingest logs |
+| `--elk` | Launch Elasticsearch + Kibana and ingest logs (Kibana UI at `http://localhost:5601`) |
 | `--no-zeek` | Disable Zeek PCAP parsing |
 | `--cleanup_network` | Delete the Docker network before running |
 | `--cleanup_volume` | Delete the log volume before running |
 | `--cleanup_splunk` | Remove Splunk container after completion |
+| `--cleanup_postgres` | Remove PostgreSQL container after completion |
+| `--cleanup_elk` | Remove Elasticsearch and Kibana containers after completion |
 
 ### Example runs
 
@@ -165,7 +178,25 @@ python3 setc/setc.py example_configurations/compose_small.json --cleanup_volume 
 
 # With Splunk integration
 python3 setc/setc.py example_configurations/docker_large.json --splunk --cleanup_volume
+
+# With PostgreSQL backend
+python3 setc/setc.py example_configurations/docker_small.json --postgres --cleanup_volume --cleanup_postgres
+
+# With ELK stack (Elasticsearch + Kibana)
+python3 setc/setc.py example_configurations/docker_small.json --elk --cleanup_volume --cleanup_elk
 ```
+
+## SIEM Backends
+
+SETC can optionally ingest logs into a SIEM for querying and visualization. All backends are launched as Docker containers alongside the exploit pipeline and share the same `--password` flag (default: `password1234`).
+
+| Backend | Flag | Access | Cleanup |
+|---------|------|--------|---------|
+| **Splunk** | `--splunk` | `http://localhost:8000` (user: `admin`) | `--cleanup_splunk` |
+| **PostgreSQL** | `--postgres` | `localhost:5432` (user: `setc`, db: `setc`) | `--cleanup_postgres` |
+| **ELK** | `--elk` | Kibana: `http://localhost:5601`, ES: `http://localhost:9200` (user: `elastic`) | `--cleanup_elk` |
+
+Backends are left running after SETC completes by default so you can query the data. Use the corresponding `--cleanup_*` flag to tear them down automatically.
 
 ## Setup
 
