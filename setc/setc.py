@@ -13,6 +13,7 @@ from runners.docker_compose_msf_cli import DockerComposeMsfCli
 from modules.zeek import ZeekModule
 from modules.splunk import SplunkModule
 from modules.postgres import PostgresModule
+from modules.elasticsearch import ElasticsearchModule
 from modules.docker_process_logger import DockerProcessLogs
 
 
@@ -136,6 +137,9 @@ def parse_args() -> tuple[argparse.Namespace, list[dict[str, Any]]]:
     module_group.add_argument("--postgres",
                               help="Create a PostgreSQL instance and populate it with SETC logs.",
                               action='store_true')
+    module_group.add_argument("--elk",
+                              help="Create an Elasticsearch instance with Kibana and populate it with SETC logs. Kibana UI available at http://localhost:5601.",
+                              action='store_true')
     module_group.add_argument("--no-zeek",
                               help="Disable zeek pcap log parsing (enabled by default).",
                               action='store_true')
@@ -152,6 +156,9 @@ def parse_args() -> tuple[argparse.Namespace, list[dict[str, Any]]]:
                                action='store_true')
     cleanup_group.add_argument("--cleanup_postgres",
                                help="Remove the PostgreSQL container after SETC completes.",
+                               action='store_true')
+    cleanup_group.add_argument("--cleanup_elk",
+                               help="Remove the Elasticsearch and Kibana containers after SETC completes.",
                                action='store_true')
 
     args = parser.parse_args()
@@ -234,6 +241,7 @@ def main() -> None:
     zeek = None
     splunk = None
     postgres = None
+    elasticsearch = None
 
     try:
         ########################################
@@ -291,6 +299,12 @@ def main() -> None:
                                       network_name=args.network,
                                       postgres_password=args.password, prefix=prefix)
             postgres.setup()
+
+        if args.elk:
+            elasticsearch = ElasticsearchModule(client, volume_name=args.volume,
+                                                network_name=args.network,
+                                                elasticsearch_password=args.password, prefix=prefix)
+            elasticsearch.setup()
 
 
         ########################################
@@ -423,6 +437,12 @@ def main() -> None:
                 if postgres and postgres.setup_complete:
                     postgres.ingest_logs(system_config["name"])
 
+                if elasticsearch and elasticsearch.is_ready() and not elasticsearch.setup_complete:
+                    logger.info("Creating Elasticsearch indices")
+                    elasticsearch.post_setup()
+                if elasticsearch and elasticsearch.setup_complete:
+                    elasticsearch.ingest_logs(system_config["name"])
+
             except Exception as e:
                 logger.error("Error processing system %s: %s", system_config['name'], e)
                 logger.warning("Continuing to next system...")
@@ -455,6 +475,8 @@ def main() -> None:
             splunk.cleanup(remove=args.cleanup_splunk)
         if postgres:
             postgres.cleanup(remove=args.cleanup_postgres)
+        if elasticsearch:
+            elasticsearch.cleanup(remove=args.cleanup_elk)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ from modules.docker_process_logger import (  # noqa: E402
 )
 from utils import prefixed_name  # noqa: E402
 from modules.postgres import TABLES, FORMAT_TABLE  # noqa: E402
+from modules.elasticsearch import INDEX_MAP  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Sample data
@@ -594,3 +595,21 @@ class TestPostgresModule:
             else:
                 assert is_json is True
                 assert table_name == f"{fmt_dir}_logs"
+
+
+# ===================================================================
+# 10. ElasticsearchModule constants
+# ===================================================================
+class TestElasticsearchModule:
+    """Tests for ElasticsearchModule index/format constants."""
+
+    def test_index_map_has_all_formats(self):
+        expected = {"zeek", "cim", "ecs", "ocsf", "cef", "udm"}
+        assert set(INDEX_MAP.keys()) == expected
+
+    def test_cef_is_non_json(self):
+        _, is_json = INDEX_MAP["cef"]
+        assert is_json is False
+        for fmt_dir, (index_name, is_json) in INDEX_MAP.items():
+            if fmt_dir != "cef":
+                assert is_json is True, f"{fmt_dir} should be JSON"
