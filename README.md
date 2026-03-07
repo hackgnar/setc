@@ -1,170 +1,253 @@
-# SETC: Security Exploit Telemetry Framework
-The SETC framework enables automated, reproducible vulnerability exploitation data collection at scale. Currently, security researchers face three significant limitations when collecting vulnerability data:
-* First, when data comes from real-world incidents or security competitions, it's not repeatable - if researchers need additional data points, there's no way to recreate the exact scenario.
-* Second, researchers are restricted to events outside their control - they can't study specific vulnerabilities or attack techniques on demand.
-* Finally, manual attack simulation is extremely time and resource-intensive, requiring significant setup and execution effort for each scenario.
-SETC addresses these challenges through a novel framework architecture. More about the project can be found on the [arxiv pre-release paper](https://arxiv.org/pdf/2406.05942) here or in the official [IEEE paper being released at CARS](https://ieee-cars.org/).
+# SETC: Security Exploit Telemetry Collection
 
-## Overview
-The SETC framework provides a means for recording deep security telemetry of attacks against vulnerable services. The framework achieves the collection of security telemetry by hosting and exploiting vulnerable services in a controlled container environment. Vulnerable services, exploits, and telemetry collection are modular and defined in framework configuration files.
- 
+SETC automates vulnerability exploitation in Docker containers, captures network traffic and system telemetry, and converts logs to standard formats (CIM, OCSF, ECS). It produces repeatable, on-demand exploit telemetry for security research, tooling development, and dataset generation.
 
-The data produced by the framework aims to advance security research, security tooling, and security telemetry collection. Users can generate attack telemetry through a modular configuration system for various vulnerability classes, services, or time frames. The modular configuration system also allows users to share configuration files for collaboration and validation of research. The SET framework is a unique tool that produces high-caliber mass exploitation telemetry in controlled security environments.
+For the full research background, see the [arXiv preprint](https://arxiv.org/pdf/2406.05942), the published [IEEE CARS 2024 paper](https://ieeexplore.ieee.org/document/10778761), and the [doctoral dissertation](https://scholar.dsu.edu/theses/501/).
 
-## Current Capabilities
-* Modular configurations
-* Vulnerable instance hosting
-* Vulnerability exploitation
-* Network monitoring
-* System log telemetry
-* IDS parsing
-* Logging pipeline
-* Logging standard support for CIM & OCSF
-* SIEM support
+## Quickstart
 
-## How it Works
-So how does it work under the hood? Upon initiating the framework, the core framework runner will parse and read a configuration file that dictates how a particular execution of the framework will behave. Each entry in the configuration file instructs what vulnerable service should be hosted and what exploit should be run against it. These groups of entries may define classes of vulnerabilities, vulnerabilities associated with specific software, or vulnerabilities from particular date ranges.
+```bash
+# Clone and install
+git clone https://github.com/your-org/setc.git
+cd setc
+pip install -r requirements.txt
 
- 
-Once a configuration is parsed, the framework will initialize the vulnerable service instance containers in a private network. In parallel, the framework will also initiate the telemetry collection modules for each vulnerable instance. The collection modules are a mix of proxy container services and container sidecars with various security metric collection capabilities. Once the framework has validated vulnerable services and collection modules are fully running, the framework will transition into the exploitation phase.
- 
+# Build required system containers
+cd docker_images/tcpdump && docker build -t tcpdump . && cd ../..
+cd docker_images/log_format && docker build -t logformat . && cd ../..
+docker pull metasploitframework/metasploit-framework:6.2.33
 
-At the start of each exploitation phase, the framework will create containers capable of running end-to-end exploits specific to a vulnerable instance. Once an exploit is initiated, the framework will monitor the exploit containers for signs of successful or failed exploitation. In the event of a failed exploit attempt, the framework will reinitiate an attack and repeat until a successful exploit is achieved. After completing an exploit, The framework will transition into a clean-up and telemetry collection phase.
- 
+# Run a single-exploit example
+python3 setc/setc.py example_configurations/docker_small.json --cleanup_volume --cleanup_network
+```
 
-During the telemetry collection phase, data is sent to a logging pipeline. The logging pipeline of the framework serves two core purposes. The first purpose is to function as a data transposition layer for log events in the logging pipeline. Telemetry files can be converted into various logging standard formats. These include standards such as OCSF, CIM, and UDM. After data transposition, the logging pipeline phase routes data to its final destination. These destinations are configurable and include sinks such as simple file storage or SIEM ingestion and analysis.
+## How It Works
+
+```
+Config JSON
+  |
+  v
+1. Parse config entries (one per CVE / exploit)
+  |
+  v
+2. Start target container(s) + tcpdump on a private Docker network
+  |
+  v
+3. Launch Metasploit, run exploit, retry until success
+  |
+  v
+4. Capture process tables (pre/post exploit)
+  |
+  v
+5. Zeek parses captured PCAPs into structured logs
+  |
+  v
+6. Convert logs to CIM, ECS, and OCSF formats
+  |
+  v
+7. Output to Docker volume (and optionally Splunk)
+```
+
+## Configuration
+
+Each config is a JSON array of exploit entries. SETC supports two target modes:
+
+**Single container** -- provide a Docker image directly:
+```json
+[
+    {
+        "name": "CVE-2018-11776",
+        "settings": {
+            "description": "Struts2 OGNL injection RCE",
+            "target_image": "vulhub/struts2:2.5.25",
+            "exploit": "multi/http/struts2_multi_eval_ognl"
+        }
+    }
+]
+```
+
+**Docker Compose** -- for multi-container targets (uses `$VULN_PATH` and `$SETC_PATH` env vars):
+```json
+[
+    {
+        "name": "CVE-2014-6271",
+        "settings": {
+            "description": "Apache CGI shellshock using user agent",
+            "yml_file": "$VULN_PATH/bash/CVE-2014-6271/docker-compose.yml",
+            "target_name": "setc-web-1",
+            "exploit": "multi/http/apache_mod_cgi_bash_env_exec",
+            "exploit_options": "set TARGETURI /victim.cgi;"
+        }
+    }
+]
+```
+
+### Config fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | CVE or exploit identifier |
+| `description` | Yes | Human-readable description |
+| `exploit` | Yes | Metasploit module path |
+| `target_image` | One of these | Docker image for single-container targets |
+| `yml_file` + `target_name` | One of these | Docker Compose file + target container name |
+| `exploit_options` | No | Additional MSF console commands (semicolon-separated) |
+| `exploit_success_pattern` | No | Regex pattern to detect success (default: checks for port 4444) |
+| `target_delay` | No | Seconds to wait after starting the target (default: 0) |
+| `exploit_retries` | No | Retry count before giving up (default: 4) |
+| `exploit_check_delay` | No | Seconds between status checks (default: 3) |
+| `exploit_check_count` | No | Status checks per attempt (default: 7) |
+| `ready_delay` | No | Seconds between readiness checks (default: 5) |
+| `ready_retries` | No | Readiness checks before giving up (default: 5) |
+
+See `setc_config_schema.json` for the full JSON Schema. Validate configs with:
+```bash
+check-jsonschema --schemafile setc_config_schema.json example_configurations/docker_small.json
+```
+
+## Output
+
+SETC writes all telemetry to a Docker volume (`set_logs` by default). Each CVE gets its own directory:
+
+```
+set_logs/
+  CVE-2018-11776/
+    pcap/                     # Raw packet capture
+    zeek/                     # Zeek-parsed logs (conn.log, http.log, ...)
+    cim/
+      cim_http.log            # Splunk CIM web format
+      cim_network.log         # Splunk CIM network format
+      cim_process_*.log       # CIM endpoint process logs
+    ecs/
+      ecs_http.log            # Elastic Common Schema
+      ecs_network.log
+      ecs_process_*.log
+    ocsf/
+      ocsf_http.log           # OCSF 1.4.0 HTTP Activity
+      ocsf_network.log        # OCSF 1.4.0 Network Activity
+      ocsf_process_*.log      # OCSF Process Query
+```
+
+## CLI Reference
+
+```
+usage: setc [-h] [-v] [-p PASSWORD] [--volume VOLUME] [--network NETWORK]
+            [--msf MSF] [--prefix PREFIX] [--splunk] [--no-zeek]
+            [--cleanup_network] [--cleanup_volume] [--cleanup_splunk]
+            config
+```
+
+| Flag | Description |
+|------|-------------|
+| `config` | Path to a SETC configuration JSON file |
+| `-v, --verbose` | Enable debug logging |
+| `-p, --password` | SIEM password (default: `password1234`) |
+| `--volume` | Docker volume name (default: `set_logs`) |
+| `--network` | Docker network name (default: `set_framework_net`) |
+| `--msf` | Override the Metasploit Docker image |
+| `--prefix` | Session prefix for container names (auto-generated if omitted) |
+| `--splunk` | Launch a Splunk instance and ingest logs |
+| `--no-zeek` | Disable Zeek PCAP parsing |
+| `--cleanup_network` | Delete the Docker network before running |
+| `--cleanup_volume` | Delete the log volume before running |
+| `--cleanup_splunk` | Remove Splunk container after completion |
+
+### Example runs
+
+```bash
+# Single-container config
+python3 setc/setc.py example_configurations/docker_small.json --cleanup_volume
+
+# Docker Compose targets (set env vars first)
+export VULN_PATH=/path/to/vulhub
+export SETC_PATH=/path/to/setc
+python3 setc/setc.py example_configurations/compose_small.json --cleanup_volume --cleanup_network
+
+# With Splunk integration
+python3 setc/setc.py example_configurations/docker_large.json --splunk --cleanup_volume
+```
 
 ## Setup
-The current Alpha verison of SETC uses python3 and Docker. Both applications are required to run the framework. Docker support works for both Docker native and Docker Desktop.
 
-### Libraries
-* Python Docker API - The core SETC framework dynamicly controls Docker instances though the [Python Docker API library](https://docker-py.readthedocs.io/en/stable/). Python Docker can be installed with pip `pip install docker`
+### Prerequisites
+- Python 3.10+
+- Docker (native or Docker Desktop)
 
-### SETC System Containers
+### System containers
 
-* Network Monitoring - This container is needed for network based monitoring of target and attack containers.  To install:
-```
-cd docker_images/tcpdump
-docker build -t tcpdump .
-```
+These three containers are required for SETC to run:
 
-* Log Standard Formatting - This container is currently used to transpose log formats to supported logging standards. This will be replace by Nifi in the upcoming SETC beta version.
-```
-cd docker_images/log_format
-docker build -t logformat .
-```
+```bash
+# Network monitoring (tcpdump sidecar)
+cd docker_images/tcpdump && docker build -t tcpdump .
 
-* Metasploit - SETC provides many deployment and configuration shortcut if attack exploits are deployed with Metasploit. Due to Docker host lookup compatability, make sure to install the correct version. Newer versions are unable to do Docker hostname resolution from within MSF console.
-```
+# Log format conversion
+cd docker_images/log_format && docker build -t logformat .
+
+# Metasploit (pinned for Docker hostname resolution compatibility)
 docker pull metasploitframework/metasploit-framework:6.2.33
 ```
 
-### Optional Sample Containers
-SETC provides sample configuration files with the following vulnerable Docker images. If you would like to use the included sample configuration files, you will have to install the following vulnerable Docker images.
+### Sample target images
 
-* Metasploitable
-```
-cd docker_images/metasploitable2
-docker build -t metasploitable2 .
-```
+The example configs reference these vulnerable images. Build or pull whichever you need:
 
-* Vulhub JBoss
-```
-docker pull vulhub/jboss:as-6.1.0
-```
+```bash
+# Metasploitable2 (used by docker_large.json)
+cd docker_images/metasploitable2 && docker build -t metasploitable2 .
 
-* Vulhub Laravel
-```
-docker pull vulhub/laravel:8.4.2
+# Apache HTTPD CVEs (used by docker_large.json)
+cd docker_images/httpd/CVE-2021-41773 && docker build -t cve-2021-41773 .
+cd docker_images/httpd/CVE-2021-42013 && docker build -t cve-2021-42013 .
+
+# Vulhub images are pulled automatically by Docker
 ```
 
-* CVE-2021-41773
-```
-cd docker_images/httpd/CVE-2021-41773
-docker build -t cve-2021-41773 .
+For Docker Compose configs, clone [vulhub](https://github.com/vulhub/vulhub) and set `VULN_PATH` to point to it.
 
-```
+## Development
 
-* CVE-2021-42013
-```
-cd docker_images/httpd/CVE-2021-42013
-docker build -t cve-2021-42013 .
+```bash
+pip install -r requirements-dev.txt
 
-```
+# Run unit tests (no Docker required)
+python -m pytest tests/test_unit.py -v
 
-## Usage
-SETC is fairly straight forward to run. The only required argument is a configuration file. The following shows the current supported arguments for the framework:
-
-
+# Run e2e tests (requires Docker and built images)
+python -m pytest tests/test_e2e.py -v
 ```
 
-$ python3 setc.py --help
-usage: setc.py [-h] [-p PASSWORD] [--volume VOLUME] [--network NETWORK] [--splunk] [--cleanup_network] [--cleanup_volume] [-v] [--zeek] [--msf MSF]
-               config
+Unit tests run automatically via GitHub Actions on pushes to `main`/`dev` and on pull requests.
 
-positional arguments:
-  config                The SETC configuration file to use. Example configuration files are provided in the projects sample_configuration directory.
+## Demo
 
-options:
-  -h, --help            show this help message and exit
-  -p PASSWORD, --password PASSWORD
-                        The password to use for SIEM services. If not provided, a default password of password1234 will be used
-  --volume VOLUME       The Docker volume to use for storing and manulpulating SETC log files. If not provided, the volume set_logs will be used
-  --network NETWORK     The Docker network to be used for container network connections. If not provided, the network set_framework_net will be
-                        used.
-  --splunk              Create a Splunk instance and populate it with SETC logs. The Splunk instance will remain up by default after the completion
-                        of a SETC run. The instance must be cleaned up manually.
-  --cleanup_network     Delete the SETC docker network before running.
-  --cleanup_volume      Delete the SETC docker log volume before running.
-  -v, --verbose         Enable SETC debug logging.
-  --no-zeek             SETC parses pcap logs with zeek by default. Use this flag to DISABLE zeek.
-  --msf MSF             Override the default metasploit framework image. This is useful if you would like to use custom built or bleeding edge msf
-                        image to get access to the latest or custom msf exploits
-```
-example run:
-```
-export VULN_PATH=/path_to_vuln_images/vulhub
-export SETC_PATH=/path_to_setc/setc
-python3 setc.py ../example_configurations/compose_small.json
-```
-
-### SETC Demo Video
-Note: The demo video uses the older SETC Alpha release. 
+Note: This video shows an earlier version of SETC. The core workflow is the same but the CLI options have changed.
 
 [![SETC Demo Video](https://img.youtube.com/vi/v09yiL_8USM/0.jpg)](https://www.youtube.com/watch?v=v09yiL_8USM)
 
-## Roadmap
-SETC is currently considered an Alpha version of the project. While the alpha version is fully functional, many corners were cut to develop a working prototype rapidly. Completing the following roadmap features will make the project more usable, modular, and fit for community contribution.
-
-| Feature    | Description |
-| -------- | ------- |
-| Conversion from Docker to Kubernetes | Ultimately, the project needs to be converted from a Docker engine to a Kubernetes engine to support advanced sidecar patterns and complex multi-system vulnerability systems. The completion of this milestone will transition the project into a beta version.|
-| Endpoint agent support | Docker sidecar patterns do not support application monitoring. This needs to be added as a “docker in docker” design or the framework needs to support Kubernetes as a backend.|
-| Nifi as the log pipeline | Due to time constrains Nifi was dropped as a log pipeline in the alpha release. Nifi is still planned to be included in later iterations of the project.|
-| File audit telemetry | Docker sidecar patterns do not support file  monitoring. This needs to be added as a “docker in docker” design or the framework needs to support Kubernetes as a backend.|
-| Modular IDS support | Zeek is currently the only supported IDS in the framework. It is also implemented in a very monolithic design.|
-| Modular log standard conversion | Log file transposition is not currently configurable. All supported standards are created on each run.|
-| Modular SIEM support | The framework currently only supports Splunk.|
-| SIEM auto configuration | SIEM modules have no configuration stage. SIEMs are instantiated and data accessable to them, but configuration is a manual process during each run.|
-| Run time parralelization | A configuration entity takes about 3 minutes to run from start to finish (start services, exploit, & cleanup). While this feature is not needed, it would make demos look really “cool”.|
-| Scanning support | Scanning functionality on attack containers was not MVP for the alpha version. This could allow for auto exploit detection and other framework features.|
-| DONE - Exploit validation checks	| Due to time constrains, exploit validation checks were removed from MVP. These are needed to validate an exploit completed without inspection of log telemetry.|
-| Vulnerable server service health check | Currently, the framework just waits 1-2 minutes to make sure a service container has started. Having a validity check for service status would increase run speeds and reliability.|
-| Support for docker-compose | Some vulnerable services require multiple containers. The current alpha version only supports vulnerable services contained in a single image.|
-| HTTP proxy module | The current version derives HTTP logs from pcap files. Having HTTP proxy modules would allow for more standardized web events, fields, etc.|
-|Consolidate telemetry and attack modules | To keep the design simple, telemetry and attack modules are duplicated for each configuration entity. Reusing containers would speed up runtime.| 
-
 ## Citation
-If you use this project in your research, please cite:
-```
+
+If you use SETC in your research, please cite:
+
+**IEEE CARS 2024 paper:**
+```bibtex
 @INPROCEEDINGS{10778761,
   author={Holeman, Ryan and Hastings, John D. and Mathew Vaidyan, Varghese},
-  booktitle={2024 Cyber Awareness and Research Symposium (CARS)}, 
-  title={SETC: A Vulnerability Telemetry Collection Framework}, 
+  booktitle={2024 Cyber Awareness and Research Symposium (CARS)},
+  title={SETC: A Vulnerability Telemetry Collection Framework},
   year={2024},
-  volume={},
-  number={},
   pages={1-7},
-  keywords={Threat modeling;Technological innovation;Web and internet services;Manuals;Data collection;Software;Security;Telemetry;Monitoring;Testing;logging model;vulnerability;exploit;intrusion detection;security events},
-  doi={10.1109/CARS61786.2024.10778761}}
+  doi={10.1109/CARS61786.2024.10778761}
+}
+```
+
+**Dissertation:**
+```bibtex
+@phdthesis{holeman2024setc,
+  author={Holeman, Ryan},
+  title={SETC: A Vulnerability Telemetry Collection Framework},
+  school={Dakota State University},
+  year={2024},
+  url={https://scholar.dsu.edu/theses/501/}
+}
 ```
