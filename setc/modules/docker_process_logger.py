@@ -145,6 +145,43 @@ ocsf_process = {
   },
 }
 
+def cef_escape_header(value: str) -> str:
+	"""Escape backslashes and pipes for CEF header fields."""
+	return str(value).replace("\\", "\\\\").replace("|", "\\|")
+
+def cef_escape_extension(value: str) -> str:
+	"""Escape backslashes and equals signs for CEF extension values."""
+	return str(value).replace("\\", "\\\\").replace("=", "\\=")
+
+def format_cef_line(header: tuple, extensions: dict[str, Any]) -> str:
+	"""Format a CEF header and extensions dict into a single CEF log line."""
+	vendor, product, version, event_class_id, name, severity = header
+	hdr = "CEF:0|{}|{}|{}|{}|{}|{}".format(
+		cef_escape_header(vendor), cef_escape_header(product),
+		cef_escape_header(version), cef_escape_header(event_class_id),
+		cef_escape_header(name), severity)
+	ext_parts = []
+	for k, v in extensions.items():
+		if v is not None:
+			ext_parts.append("{}={}".format(k, cef_escape_extension(str(v))))
+	return hdr + "|" + " ".join(ext_parts)
+
+cef_process = {
+	"rt": lambda x: int(x.get("ts", time.time()) * 1000),
+	"sproc": lambda x: parse_command(x.get("COMMAND")).filename,
+	"spid": lambda x: x.get("PID"),
+	"dpid": lambda x: x.get("PPID"),
+	"suser": lambda x: x.get("USER"),
+	"act": lambda x: "allowed",
+	"cat": lambda x: "process",
+	"cs1Label": lambda x: "commandLine",
+	"cs1": lambda x: parse_command(x.get("COMMAND")).fullcmd,
+	"cs2Label": lambda x: "executablePath",
+	"cs2": lambda x: parse_command(x.get("COMMAND")).abspath,
+	"cs3Label": lambda x: "tty",
+	"cs3": lambda x: x.get("TT"),
+}
+
 class DockerProcessLogs:
 	"""Captures container process tables and converts them to CIM, ECS, and OCSF formats."""
 
@@ -157,6 +194,7 @@ class DockerProcessLogs:
 		self.ocsf = None
 		self.ecs=None
 		self.cim=None
+		self.cef = None
 
 	def post_up(self, read_container: docker.models.containers.Container, vuln_name: str) -> None:
 		"""Snapshot process table after target comes up, convert, and write logs."""
@@ -165,9 +203,11 @@ class DockerProcessLogs:
 		self.convert_to_cim()
 		self.convert_to_ecs()
 		self.convert_to_ocsf()
+		self.convert_to_cef()
 		self.write_to_volume("cim", vuln_name)
 		self.write_to_volume("ecs", vuln_name)
 		self.write_to_volume("ocsf", vuln_name)
+		self.write_to_volume("cef", vuln_name)
 
 	def pre_down(self, read_container: docker.models.containers.Container, vuln_name: str) -> None:
 		"""Snapshot process table before target goes down, convert, and write logs."""
@@ -176,9 +216,11 @@ class DockerProcessLogs:
 		self.convert_to_cim()
 		self.convert_to_ecs()
 		self.convert_to_ocsf()
+		self.convert_to_cef()
 		self.write_to_volume("cim", vuln_name)
 		self.write_to_volume("ecs", vuln_name)
 		self.write_to_volume("ocsf", vuln_name)
+		self.write_to_volume("cef", vuln_name)
 
 	def get_process_logs(self, read_container: docker.models.containers.Container) -> None:
 		"""Run 'docker top' on the container and store the process table as dicts."""
@@ -205,6 +247,15 @@ class DockerProcessLogs:
 		"""Convert stored process logs to CIM format."""
 		self.cim = [apply_schema(log, cim_endpoint_process) for log in self.docker_logs]
 
+	def convert_to_cef(self) -> None:
+		"""Convert stored process logs to CEF format."""
+		self.cef = []
+		for log in self.docker_logs:
+			header = ("SETC", "setc", "1.0",
+					  "SETC-PROC-SNAP", "Process Activity: Snapshot", "3")
+			extensions = apply_schema(log, cef_process)
+			self.cef.append(format_cef_line(header, extensions))
+
 	def write_to_volume(self, log_type: str, directory: str) -> None:
 		"""Write converted logs to the shared Docker volume as a tar archive.
 
@@ -214,7 +265,11 @@ class DockerProcessLogs:
 		"""
 		tar_fileobj = io.BytesIO()
 		with tarfile.open(fileobj=tar_fileobj, mode="w|") as tar:
-			my_content = json.dumps(getattr(self,log_type)).encode('utf-8')
+			data = getattr(self, log_type)
+			if isinstance(data, list) and data and isinstance(data[0], str):
+				my_content = ("\n".join(data) + "\n").encode('utf-8')
+			else:
+				my_content = json.dumps(data).encode('utf-8')
 			tf = tarfile.TarInfo("%s_process_%s.log" % (log_type, str(time.time())))
 			tf.size = len(my_content)
 			tar.addfile(tf, io.BytesIO(my_content))

@@ -23,6 +23,8 @@ from modules.docker_process_logger import (  # noqa: E402
     cim_endpoint_process,
     ecs_process,
     ocsf_process,
+    cef_process,
+    format_cef_line as process_format_cef_line,
 )
 from utils import prefixed_name  # noqa: E402
 
@@ -422,3 +424,90 @@ class TestPrefixedName:
 
     def test_empty_prefix(self):
         assert prefixed_name("", "zeek") == "zeek"
+
+
+# ===================================================================
+# 7. CEF conversions
+# ===================================================================
+class TestCefEscapeHelpers:
+    """Tests for CEF escape functions."""
+
+    def test_cef_escape_header_pipe(self):
+        assert lfc.cef_escape_header("a|b") == "a\\|b"
+
+    def test_cef_escape_header_backslash(self):
+        assert lfc.cef_escape_header("a\\b") == "a\\\\b"
+
+    def test_cef_escape_header_both(self):
+        assert lfc.cef_escape_header("a\\|b") == "a\\\\\\|b"
+
+    def test_cef_escape_extension_equals(self):
+        assert lfc.cef_escape_extension("key=val") == "key\\=val"
+
+    def test_cef_escape_extension_backslash(self):
+        assert lfc.cef_escape_extension("a\\b") == "a\\\\b"
+
+
+class TestFormatCefLine:
+    """Tests for format_cef_line()."""
+
+    def test_basic_format(self):
+        header = ("Vendor", "Product", "1.0", "100", "Test Event", "5")
+        extensions = {"src": "10.0.0.1", "dst": "10.0.0.2"}
+        result = lfc.format_cef_line(header, extensions)
+        assert result.startswith("CEF:0|Vendor|Product|1.0|100|Test Event|5|")
+        assert "src=10.0.0.1" in result
+        assert "dst=10.0.0.2" in result
+
+    def test_none_values_excluded(self):
+        header = ("V", "P", "1", "1", "E", "1")
+        extensions = {"src": "10.0.0.1", "empty": None}
+        result = lfc.format_cef_line(header, extensions)
+        assert "src=10.0.0.1" in result
+        assert "empty" not in result
+
+    def test_header_escaping(self):
+        header = ("Ven|dor", "Pro\\duct", "1.0", "100", "Test", "5")
+        result = lfc.format_cef_line(header, {})
+        assert "Ven\\|dor" in result
+        assert "Pro\\\\duct" in result
+
+
+class TestZeekCefConversions:
+    """Tests for zeek log → CEF conversions."""
+
+    def test_zeek_to_cef_http(self):
+        result = lfc.zeek_to_cef(SAMPLE_ZEEK_HTTP)
+        assert isinstance(result, str)
+        assert result.startswith("CEF:0|SETC|setc|1.0|SETC-HTTP-GET|HTTP Activity: GET|3|")
+        assert "src=10.0.0.1" in result
+        assert "dst=10.0.0.2" in result
+        assert "requestMethod=GET" in result
+        assert "dhost=example.com" in result
+        assert "request=/index.html?q\\=1" in result  # equals escaped in extension
+
+    def test_zeek_to_network_cef(self):
+        result = lfc.zeek_to_network_cef(SAMPLE_ZEEK_CONN)
+        assert isinstance(result, str)
+        assert result.startswith("CEF:0|SETC|setc|1.0|SETC-NET-CONN|Network Activity: Traffic|3|")
+        assert "src=10.0.0.1" in result
+        assert "dst=10.0.0.2" in result
+        assert "proto=tcp" in result
+        assert "act=allowed" in result
+
+
+class TestCefProcessSchema:
+    """Tests for CEF process schema conversion."""
+
+    def test_cef_process_output(self):
+        extensions = process_apply_schema(SAMPLE_PROCESS, cef_process)
+        line = process_format_cef_line(
+            ("SETC", "setc", "1.0", "SETC-PROC-SNAP", "Process Activity: Snapshot", "3"),
+            extensions)
+        assert isinstance(line, str)
+        assert line.startswith("CEF:0|SETC|")
+        assert "sproc=python3" in line
+        assert "spid=1" in line
+        assert "suser=root" in line
+        assert "act=allowed" in line
+        assert "cat=process" in line

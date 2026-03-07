@@ -36,7 +36,7 @@ class ZeekModule:
         """Create the pcap/zeek/cim/ocsf/ecs subdirectories for a CVE on the volume."""
         #cmd = ["mkdir","-p","/data/%s/\\{pcap, zeek, cim, ocsf, cef\\}" % name]
         #self.zeek.exec_run(cmd=cmd)
-        for subdir in ["pcap", "zeek", "cim", "ocsf", "ecs"]:
+        for subdir in ["pcap", "zeek", "cim", "ocsf", "ecs", "cef"]:
             cmd = ["mkdir", "-p", "/data/%s/%s" % (name, subdir)]
             try:
                 result = self.zeek.exec_run(cmd=cmd)

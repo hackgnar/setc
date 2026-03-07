@@ -30,6 +30,27 @@ def apply_schema(log: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
             result[field_name] = value
     return result
 
+def cef_escape_header(value: str) -> str:
+    """Escape backslashes and pipes for CEF header fields."""
+    return str(value).replace("\\", "\\\\").replace("|", "\\|")
+
+def cef_escape_extension(value: str) -> str:
+    """Escape backslashes and equals signs for CEF extension values."""
+    return str(value).replace("\\", "\\\\").replace("=", "\\=")
+
+def format_cef_line(header: tuple, extensions: dict[str, Any]) -> str:
+    """Format a CEF header and extensions dict into a single CEF log line."""
+    vendor, product, version, event_class_id, name, severity = header
+    hdr = "CEF:0|{}|{}|{}|{}|{}|{}".format(
+        cef_escape_header(vendor), cef_escape_header(product),
+        cef_escape_header(version), cef_escape_header(event_class_id),
+        cef_escape_header(name), severity)
+    ext_parts = []
+    for k, v in extensions.items():
+        if v is not None:
+            ext_parts.append("{}={}".format(k, cef_escape_extension(str(v))))
+    return hdr + "|" + " ".join(ext_parts)
+
 cim_http_from_zeek = {
     "timestamp": lambda x: x.get("ts", time.time()),
     "action": lambda x: "http", # required
@@ -134,6 +155,32 @@ def zeek_to_ocsf(log: dict[str, Any]) -> dict[str, Any]:
     """Convert a Zeek HTTP log entry to OCSF HTTP Activity format."""
     return apply_schema(log, ocsf_http_from_zeek)
 
+cef_http_from_zeek = {
+    "rt": lambda x: int(x.get("ts", 0) * 1000),
+    "src": lambda x: x.get("id.orig_h", ""),
+    "spt": lambda x: x.get("id.orig_p", ""),
+    "dst": lambda x: x.get("id.resp_h", ""),
+    "dpt": lambda x: x.get("id.resp_p", ""),
+    "dhost": lambda x: x.get("host", ""),
+    "app": lambda x: "http",
+    "requestMethod": lambda x: x.get("method", ""),
+    "request": lambda x: x.get("uri", ""),
+    "requestContext": lambda x: x.get("referrer", ""),
+    "requestClientApplication": lambda x: x.get("user_agent", ""),
+    "in": lambda x: x.get("request_body_len", 0),
+    "out": lambda x: x.get("response_body_len", 0),
+    "cn1Label": lambda x: "statusCode",
+    "cn1": lambda x: x.get("status_code", ""),
+}
+
+def zeek_to_cef(log: dict[str, Any]) -> str:
+    """Convert a Zeek HTTP log entry to a CEF log line."""
+    method = log.get("method", "Unknown")
+    header = ("SETC", "setc", "1.0",
+              "SETC-HTTP-" + method, "HTTP Activity: " + method, "3")
+    extensions = apply_schema(log, cef_http_from_zeek)
+    return format_cef_line(header, extensions)
+
 ecs_http_from_zeek = {
     "@timestamp":lambda x: x.get("ts", time.time()),
     "ecs.version":lambda x:"8.17",
@@ -221,6 +268,30 @@ ocsf_network_from_zeek = {
   }
 }
 
+cef_network_from_zeek = {
+    "rt": lambda x: int(x.get("ts", 0) * 1000),
+    "src": lambda x: x.get("id.orig_h", ""),
+    "spt": lambda x: x.get("id.orig_p", ""),
+    "dst": lambda x: x.get("id.resp_h", ""),
+    "dpt": lambda x: x.get("id.resp_p", ""),
+    "proto": lambda x: x.get("proto", ""),
+    "app": lambda x: x.get("service", ""),
+    "in": lambda x: x.get("orig_bytes", 0),
+    "out": lambda x: x.get("resp_bytes", 0),
+    "cn1Label": lambda x: "packetsIn",
+    "cn1": lambda x: x.get("orig_pkts", 0),
+    "cn2Label": lambda x: "packetsOut",
+    "cn2": lambda x: x.get("resp_pkts", 0),
+    "act": lambda x: "allowed",
+}
+
+def zeek_to_network_cef(log: dict[str, Any]) -> str:
+    """Convert a Zeek conn log entry to a CEF log line."""
+    header = ("SETC", "setc", "1.0",
+              "SETC-NET-CONN", "Network Activity: Traffic", "3")
+    extensions = apply_schema(log, cef_network_from_zeek)
+    return format_cef_line(header, extensions)
+
 def zeek_to_network_ecs(log: dict[str, Any]) -> dict[str, Any]:
     """Convert a Zeek conn log entry to ECS network format."""
     return apply_schema(log, ecs_network_from_zeek)
@@ -258,6 +329,7 @@ if __name__ == "__main__":
     cim_logs = []
     ocsf_logs = []
     ecs_logs = []
+    cef_lines = []
     http_files = find_all("http.log", base_dir)
     for logfile in http_files:
         zeek_json = ""
@@ -270,6 +342,7 @@ if __name__ == "__main__":
             ecs_logs.append(ecs_log)
             ocsf_log = zeek_to_ocsf(zeek_json)
             ocsf_logs.append(ocsf_log)
+            cef_lines.append(zeek_to_cef(zeek_json))
         r.close()
     w = open(os.path.join(output_dir, "cim", "cim_http.log"), 'w')
     json.dump(cim_logs, w)
@@ -280,11 +353,17 @@ if __name__ == "__main__":
     w = open(os.path.join(output_dir, "ocsf", "ocsf_http.log"), 'w')
     json.dump(ocsf_logs, w)
     w.close()
+    w = open(os.path.join(output_dir, "cef", "cef_http.log"), 'w')
+    w.write("\n".join(cef_lines))
+    if cef_lines:
+        w.write("\n")
+    w.close()
 
     # Network
     cim_logs = []
     ocsf_logs = []
     ecs_logs = []
+    cef_lines = []
     net_files = find_all("conn.log", base_dir)
     for logfile in net_files:
         zeek_json = ""
@@ -297,6 +376,7 @@ if __name__ == "__main__":
             ecs_logs.append(ecs_log)
             ocsf_log = zeek_to_network_ocsf(zeek_json)
             ocsf_logs.append(ocsf_log)
+            cef_lines.append(zeek_to_network_cef(zeek_json))
         r.close()
     w = open(os.path.join(output_dir, "cim", "cim_network.log"), 'w')
     json.dump(cim_logs, w)
@@ -306,4 +386,9 @@ if __name__ == "__main__":
     w.close()
     w = open(os.path.join(output_dir, "ocsf", "ocsf_network.log"), 'w')
     json.dump(ocsf_logs, w)
+    w.close()
+    w = open(os.path.join(output_dir, "cef", "cef_network.log"), 'w')
+    w.write("\n".join(cef_lines))
+    if cef_lines:
+        w.write("\n")
     w.close()
