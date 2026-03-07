@@ -28,6 +28,7 @@ from modules.docker_process_logger import (  # noqa: E402
     format_cef_line as process_format_cef_line,
 )
 from utils import prefixed_name  # noqa: E402
+from modules.postgres import TABLES, FORMAT_TABLE  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Sample data
@@ -564,3 +565,32 @@ class TestUdmProcessSchema:
         assert "python3" in result["target"]["process"]["commandLine"]
         assert result["target"]["process"]["file"]["full_path"] is not None
         assert result["security_result"]["action"] == "ALLOW"
+
+
+# ===================================================================
+# 9. PostgresModule constants
+# ===================================================================
+class TestPostgresModule:
+    """Tests for PostgresModule table/format constants."""
+
+    def test_tables_has_all_formats(self):
+        expected = {"zeek_logs", "cim_logs", "ecs_logs", "ocsf_logs", "cef_logs", "udm_logs"}
+        assert set(TABLES.keys()) == expected
+
+    def test_cef_uses_text_column(self):
+        assert TABLES["cef_logs"] == "event TEXT"
+        for table_name, col_def in TABLES.items():
+            if table_name != "cef_logs":
+                assert col_def == "event JSONB", f"{table_name} should use JSONB"
+
+    def test_format_table_mapping(self):
+        expected_dirs = {"zeek", "cim", "ecs", "ocsf", "cef", "udm"}
+        assert set(FORMAT_TABLE.keys()) == expected_dirs
+        # CEF is non-JSON, all others are JSON
+        for fmt_dir, (table_name, is_json) in FORMAT_TABLE.items():
+            if fmt_dir == "cef":
+                assert is_json is False
+                assert table_name == "cef_logs"
+            else:
+                assert is_json is True
+                assert table_name == f"{fmt_dir}_logs"

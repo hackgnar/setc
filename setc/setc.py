@@ -12,6 +12,7 @@ from runners.docker_msf_cli import DockerMsfCli
 from runners.docker_compose_msf_cli import DockerComposeMsfCli
 from modules.zeek import ZeekModule
 from modules.splunk import SplunkModule
+from modules.postgres import PostgresModule
 from modules.docker_process_logger import DockerProcessLogs
 
 
@@ -132,6 +133,9 @@ def parse_args() -> tuple[argparse.Namespace, list[dict[str, Any]]]:
     module_group.add_argument("--splunk",
                               help="Create a Splunk instance and populate it with SETC logs. The Splunk instance will remain up by default after the completion of a SETC run. The instance must be cleaned up manually.",
                               action='store_true')
+    module_group.add_argument("--postgres",
+                              help="Create a PostgreSQL instance and populate it with SETC logs.",
+                              action='store_true')
     module_group.add_argument("--no-zeek",
                               help="Disable zeek pcap log parsing (enabled by default).",
                               action='store_true')
@@ -145,6 +149,9 @@ def parse_args() -> tuple[argparse.Namespace, list[dict[str, Any]]]:
                                action='store_true')
     cleanup_group.add_argument("--cleanup_splunk",
                                help="Remove the Splunk container after SETC completes instead of leaving it running.",
+                               action='store_true')
+    cleanup_group.add_argument("--cleanup_postgres",
+                               help="Remove the PostgreSQL container after SETC completes.",
                                action='store_true')
 
     args = parser.parse_args()
@@ -226,6 +233,7 @@ def main() -> None:
 
     zeek = None
     splunk = None
+    postgres = None
 
     try:
         ########################################
@@ -277,6 +285,12 @@ def main() -> None:
                                   network_name=args.network,
                                   splunk_password=args.password, prefix=prefix)
             splunk.setup()
+
+        if args.postgres:
+            postgres = PostgresModule(client, volume_name=args.volume,
+                                      network_name=args.network,
+                                      postgres_password=args.password, prefix=prefix)
+            postgres.setup()
 
 
         ########################################
@@ -403,6 +417,12 @@ def main() -> None:
                     logger.info("Creating Splunk indexes and parsing data")
                     splunk.post_setup()
 
+                if postgres and postgres.is_ready() and not postgres.setup_complete:
+                    logger.info("Creating PostgreSQL tables")
+                    postgres.post_setup()
+                if postgres and postgres.setup_complete:
+                    postgres.ingest_logs(system_config["name"])
+
             except Exception as e:
                 logger.error("Error processing system %s: %s", system_config['name'], e)
                 logger.warning("Continuing to next system...")
@@ -433,6 +453,8 @@ def main() -> None:
             zeek.cleanup()
         if splunk:
             splunk.cleanup(remove=args.cleanup_splunk)
+        if postgres:
+            postgres.cleanup(remove=args.cleanup_postgres)
 
 
 if __name__ == "__main__":
