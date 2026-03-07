@@ -80,6 +80,8 @@ class SplunkModule:
             ["./bin/splunk", "add", "monitor", "/data/*/cef/*", "-index", "cef", "-auth", auth, "-sourcetype", "cef"],
             ["./bin/splunk", "add", "index", "udm", "-auth", auth],
             ["./bin/splunk", "add", "monitor", "/data/*/udm/*", "-index", "udm", "-auth", auth, "-sourcetype", "_json"],
+            ["./bin/splunk", "add", "index", "falco", "-auth", auth],
+            ["./bin/splunk", "add", "monitor", "/data/*/falco/*", "-index", "falco", "-auth", auth, "-sourcetype", "_json"],
         ]
         for cmd in commands:
             try:

@@ -30,6 +30,12 @@ from modules.docker_process_logger import (  # noqa: E402
 from utils import prefixed_name  # noqa: E402
 from modules.postgres import TABLES, FORMAT_TABLE  # noqa: E402
 from modules.elasticsearch import INDEX_MAP  # noqa: E402
+from modules.falco_log_converter import (  # noqa: E402
+    falco_cim_process, falco_ecs_process, falco_ocsf_process,
+    falco_cef_process, falco_udm_process,
+    falco_cim_network, falco_ecs_network, falco_ocsf_network,
+    falco_cim_file, falco_ecs_file, falco_ocsf_file,
+)
 
 # ---------------------------------------------------------------------------
 # Sample data
@@ -588,7 +594,7 @@ class TestPostgresModule:
     """Tests for PostgresModule table/format constants."""
 
     def test_tables_has_all_formats(self):
-        expected = {"zeek_logs", "cim_logs", "ecs_logs", "ocsf_logs", "cef_logs", "udm_logs"}
+        expected = {"zeek_logs", "cim_logs", "ecs_logs", "ocsf_logs", "cef_logs", "udm_logs", "falco_logs"}
         assert set(TABLES.keys()) == expected
 
     def test_cef_uses_text_column(self):
@@ -598,7 +604,7 @@ class TestPostgresModule:
                 assert col_def == "event JSONB", f"{table_name} should use JSONB"
 
     def test_format_table_mapping(self):
-        expected_dirs = {"zeek", "cim", "ecs", "ocsf", "cef", "udm"}
+        expected_dirs = {"zeek", "cim", "ecs", "ocsf", "cef", "udm", "falco"}
         assert set(FORMAT_TABLE.keys()) == expected_dirs
         # CEF is non-JSON, all others are JSON
         for fmt_dir, (table_name, is_json) in FORMAT_TABLE.items():
@@ -617,7 +623,7 @@ class TestElasticsearchModule:
     """Tests for ElasticsearchModule index/format constants."""
 
     def test_index_map_has_all_formats(self):
-        expected = {"zeek", "cim", "ecs", "ocsf", "cef", "udm"}
+        expected = {"zeek", "cim", "ecs", "ocsf", "cef", "udm", "falco"}
         assert set(INDEX_MAP.keys()) == expected
 
     def test_cef_is_non_json(self):
@@ -682,3 +688,157 @@ class TestParseMsfOptions:
 
     def test_parse_ignores_non_set(self):
         assert BaseRunner._parse_msf_options("exploit;set RPORT 80;") == {"RPORT": "80"}
+
+
+# ===================================================================
+# 13. Falco schema conversions
+# ===================================================================
+
+SAMPLE_FALCO_PROCESS: dict[str, Any] = {
+    "container.id": "abc123",
+    "container.name": "setc-target",
+    "proc.name": "bash",
+    "proc.pid": 12345,
+    "proc.ppid": 1234,
+    "proc.cmdline": "bash -c whoami",
+    "proc.exepath": "/usr/bin/bash",
+    "user.name": "root",
+    "evt.type": "execve",
+    "time": 1700000000.0,
+}
+
+SAMPLE_FALCO_NETWORK: dict[str, Any] = {
+    "container.id": "abc123",
+    "container.name": "setc-target",
+    "proc.name": "nc",
+    "fd.name": "10.0.0.1:4444->10.0.0.2:54321",
+    "fd.sip": "10.0.0.1",
+    "fd.cip": "10.0.0.2",
+    "fd.sport": 4444,
+    "fd.cport": 54321,
+    "evt.type": "connect",
+    "user.name": "root",
+    "time": 1700000000.0,
+}
+
+SAMPLE_FALCO_FILE: dict[str, Any] = {
+    "container.id": "abc123",
+    "container.name": "setc-target",
+    "proc.name": "bash",
+    "fd.name": "/etc/shadow",
+    "user.name": "root",
+    "evt.type": "write",
+    "proc.cmdline": "bash -c cat /etc/shadow",
+    "time": 1700000000.0,
+}
+
+
+class TestFalcoSchemaConversions:
+    """Tests for Falco event schema conversions."""
+
+    def test_falco_process_to_cim(self):
+        result = process_apply_schema(SAMPLE_FALCO_PROCESS, falco_cim_process)
+        assert result["process_name"] == "bash"
+        assert result["process_id"] == 12345
+        assert result["parent_process_id"] == 1234
+        assert result["user"] == "root"
+        assert result["action"] == "allowed"
+        assert result["process_exec"] == "/usr/bin/bash"
+        assert result["dest"] == "setc-target"
+
+    def test_falco_process_to_ecs(self):
+        result = process_apply_schema(SAMPLE_FALCO_PROCESS, falco_ecs_process)
+        assert result["process.name"] == "bash"
+        assert result["process.pid"] == 12345
+        assert result["process.parent.pid"] == 1234
+        assert result["process.command_line"] == "bash -c whoami"
+        assert result["process.executable"] == "/usr/bin/bash"
+        assert result["event.category"] == "process"
+        assert result["container.name"] == "setc-target"
+        assert result["container.id"] == "abc123"
+        assert result["user.name"] == "root"
+
+    def test_falco_process_to_ocsf(self):
+        result = process_apply_schema(SAMPLE_FALCO_PROCESS, falco_ocsf_process)
+        assert result["class_uid"] == "1007"
+        assert result["class_name"] == "Process Activity"
+        assert result["category_name"] == "System Activity"
+        assert "process" in result
+        assert result["process"]["name"] == "bash"
+        assert result["process"]["pid"] == 12345
+        assert result["process"]["cmd_line"] == "bash -c whoami"
+        assert result["process"]["parent_process"]["pid"] == 1234
+        assert "actor" in result
+        assert result["actor"]["user"]["name"] == "root"
+        assert "metadata" in result
+        assert result["metadata"]["product"]["name"] == "Falco"
+
+    def test_falco_process_to_cef(self):
+        extensions = process_apply_schema(SAMPLE_FALCO_PROCESS, falco_cef_process)
+        line = process_format_cef_line(
+            ("SETC", "Falco", "0.43.0", "SETC-FALCO-PROC", "Process Activity: Execution", "5"),
+            extensions)
+        assert isinstance(line, str)
+        assert line.startswith("CEF:0|SETC|Falco|")
+        assert "sproc=bash" in line
+        assert "spid=12345" in line
+        assert "suser=root" in line
+        assert "act=execve" in line
+        assert "cat=process" in line
+
+    def test_falco_process_to_udm(self):
+        result = process_apply_schema(SAMPLE_FALCO_PROCESS, falco_udm_process)
+        assert result["metadata"]["event_type"] == "PROCESS_LAUNCH"
+        assert result["metadata"]["vendor_name"] == "SETC"
+        assert result["metadata"]["product_name"] == "Falco"
+        assert result["principal"]["user"]["userid"] == "root"
+        assert result["target"]["process"]["pid"] == 12345
+        assert result["target"]["process"]["parentProcess"]["pid"] == 1234
+        assert result["target"]["process"]["commandLine"] == "bash -c whoami"
+        assert result["security_result"]["action"] == "ALLOW"
+
+    def test_falco_network_to_cim(self):
+        result = process_apply_schema(SAMPLE_FALCO_NETWORK, falco_cim_network)
+        assert result["src"] == "10.0.0.1"
+        assert result["dest"] == "10.0.0.2"
+        assert result["src_port"] == 4444
+        assert result["dest_port"] == 54321
+        assert result["transport"] == "tcp"
+        assert result["transport"] == "tcp"
+        assert result["process_name"] == "nc"
+        assert result["user"] == "root"
+
+    def test_falco_network_to_ecs(self):
+        result = process_apply_schema(SAMPLE_FALCO_NETWORK, falco_ecs_network)
+        assert result["source.ip"] == "10.0.0.1"
+        assert result["destination.ip"] == "10.0.0.2"
+        assert result["source.port"] == 4444
+        assert result["destination.port"] == 54321
+        assert result["event.category"] == "network"
+        assert result["event.category"] == "network"
+        assert result["container.name"] == "setc-target"
+
+    def test_falco_network_to_ocsf(self):
+        result = process_apply_schema(SAMPLE_FALCO_NETWORK, falco_ocsf_network)
+        assert result["category_name"] == "Network Activity"
+        assert result["src_endpoint"]["ip"] == "10.0.0.1"
+        assert result["src_endpoint"]["port"] == 4444
+        assert result["dst_endpoint"]["ip"] == "10.0.0.2"
+        assert result["dst_endpoint"]["port"] == 54321
+        assert result["metadata"]["product"]["name"] == "Falco"
+
+    def test_falco_file_to_ecs(self):
+        result = process_apply_schema(SAMPLE_FALCO_FILE, falco_ecs_file)
+        assert result["event.category"] == "file"
+        assert result["event.type"] == "change"
+        assert result["file.path"] == "/etc/shadow"
+        assert result["process.name"] == "bash"
+        assert result["user.name"] == "root"
+        assert result["container.name"] == "setc-target"
+
+    def test_falco_file_to_ocsf(self):
+        result = process_apply_schema(SAMPLE_FALCO_FILE, falco_ocsf_file)
+        assert result["class_name"] == "File System Activity"
+        assert result["file"]["name"] == "/etc/shadow"
+        assert result["actor"]["process"]["name"] == "bash"
+        assert result["actor"]["user"]["name"] == "root"

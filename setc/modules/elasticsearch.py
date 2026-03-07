@@ -14,12 +14,13 @@ logger = logging.getLogger(__name__)
 
 # Maps format directory names (as written under /data/<cve>/) to (index_name, is_json).
 INDEX_MAP = {
-    "zeek": ("zeek", True),
-    "cim":  ("cim",  True),
-    "ecs":  ("ecs",  True),
-    "ocsf": ("ocsf", True),
-    "cef":  ("cef",  False),
-    "udm":  ("udm",  True),
+    "zeek":  ("zeek",  True),
+    "cim":   ("cim",   True),
+    "ecs":   ("ecs",   True),
+    "ocsf":  ("ocsf",  True),
+    "cef":   ("cef",   False),
+    "udm":   ("udm",   True),
+    "falco": ("falco", True),
 }
 
 

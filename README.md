@@ -142,7 +142,7 @@ set_logs/
 ```
 usage: setc [-h] [-v] [-p PASSWORD] [--volume VOLUME] [--network NETWORK]
             [--msf MSF] [--prefix PREFIX] [--splunk] [--postgres] [--elk]
-            [--no-zeek] [--cleanup_network] [--cleanup_volume]
+            [--falco] [--no-zeek] [--cleanup_network] [--cleanup_volume]
             [--cleanup_splunk] [--cleanup_postgres] [--cleanup_elk]
             config
 ```
@@ -159,12 +159,40 @@ usage: setc [-h] [-v] [-p PASSWORD] [--volume VOLUME] [--network NETWORK]
 | `--splunk` | Launch a Splunk instance and ingest logs |
 | `--postgres` | Launch a PostgreSQL instance and ingest logs |
 | `--elk` | Launch Elasticsearch + Kibana and ingest logs (Kibana UI at `http://localhost:5601`) |
+| `--falco` | Run Falco for runtime syscall monitoring during exploitation |
 | `--no-zeek` | Disable Zeek PCAP parsing |
 | `--cleanup_network` | Delete the Docker network before running |
 | `--cleanup_volume` | Delete the log volume before running |
 | `--cleanup_splunk` | Remove Splunk container after completion |
 | `--cleanup_postgres` | Remove PostgreSQL container after completion |
 | `--cleanup_elk` | Remove Elasticsearch and Kibana containers after completion |
+
+### Falco runtime monitoring
+
+The `--falco` flag deploys [Falco](https://falco.org/) as a privileged sidecar container using the modern eBPF driver (requires kernel >= 5.8). Falco monitors target containers in real-time during exploitation, capturing:
+
+- **Process execution** -- spawned shells, reverse connections, privilege escalation commands
+- **Network connections** -- connect/accept syscalls with source/destination details
+- **File writes** -- file system modifications during exploitation
+
+Events are captured continuously throughout the exploit lifecycle, complementing `DockerProcessLogs` which only takes point-in-time snapshots via `docker top`. Falco events are converted to all standard log formats.
+
+Output structure per CVE:
+```
+set_logs/CVE-XXXX/
+  falco/falco_events.log    # Raw Falco NDJSON events
+  cim/cim_falco_*.log       # Splunk CIM format
+  ecs/ecs_falco_*.log       # Elastic Common Schema
+  ocsf/ocsf_falco_*.log     # OCSF 1.4.0
+  cef/cef_falco_*.log       # ArcSight CEF
+  udm/udm_falco_*.log       # Google Chronicle UDM
+```
+
+```bash
+# Run with Falco monitoring
+python3 setc/setc.py example_configurations/docker_small.json \
+  --falco --cleanup_volume --cleanup_network
+```
 
 ### RPC exploit mode
 
