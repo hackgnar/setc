@@ -152,9 +152,22 @@ class TestValidateConfig:
         errors = validate_config(cfg)
         assert any("'description'" in e for e in errors)
 
-    def test_missing_exploit(self):
+    def test_valid_config_without_exploit(self):
+        """Config without exploit field = manual mode, should be valid."""
         cfg = self._minimal_docker()
         del cfg[0]["settings"]["exploit"]
+        assert validate_config(cfg) == []
+
+    def test_valid_config_with_empty_exploit(self):
+        """Config with empty exploit string = manual mode, should be valid."""
+        cfg = self._minimal_docker()
+        cfg[0]["settings"]["exploit"] = ""
+        assert validate_config(cfg) == []
+
+    def test_exploit_wrong_type(self):
+        """exploit field must be a string if present."""
+        cfg = self._minimal_docker()
+        cfg[0]["settings"]["exploit"] = 123
         errors = validate_config(cfg)
         assert any("'exploit'" in e for e in errors)
 

@@ -88,7 +88,7 @@ Each config is a JSON array of exploit entries. SETC supports two target modes:
 |-------|----------|-------------|
 | `name` | Yes | CVE or exploit identifier |
 | `description` | Yes | Human-readable description |
-| `exploit` | Yes | Metasploit module path |
+| `exploit` | No | Metasploit module path (omit for manual exploit mode) |
 | `target_image` | One of these | Docker image for single-container targets |
 | `yml_file` + `target_name` | One of these | Docker Compose file + target container name |
 | `exploit_options` | No | Additional MSF console commands (semicolon-separated) |
@@ -164,6 +164,30 @@ usage: setc [-h] [-v] [-p PASSWORD] [--volume VOLUME] [--network NETWORK]
 | `--cleanup_splunk` | Remove Splunk container after completion |
 | `--cleanup_postgres` | Remove PostgreSQL container after completion |
 | `--cleanup_elk` | Remove Elasticsearch and Kibana containers after completion |
+
+### Manual exploit mode
+
+When `exploit` is omitted (or set to `""`), SETC starts the target and tcpdump capture, then pauses and waits for you to manually exploit the target from a separate terminal. Press Enter when done and SETC proceeds with cleanup, PCAP parsing, and log conversion as usual.
+
+This is useful for exploits not in Metasploit, custom attack chains, or interactive research.
+
+```json
+[
+    {
+        "name": "CVE-2024-XXXXX",
+        "settings": {
+            "description": "Manual exploitation of custom vuln",
+            "target_image": "vuln-app:latest"
+        }
+    }
+]
+```
+
+```bash
+# SETC will start the target, then prompt you:
+#   "Press Enter when finished exploiting to continue..."
+python3 setc/setc.py manual_config.json --cleanup_volume --cleanup_network
+```
 
 ### Example runs
 

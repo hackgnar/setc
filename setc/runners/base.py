@@ -38,6 +38,8 @@ class BaseRunner(ABC):
         self.target_name=target_name
         self.exploit_success_pattern="4444"
         self.target_logs=None
+        self.attack=None
+        self.manual=False
 
     def _prefixed(self, name: str) -> str:
         """Return the session-prefixed version of a container name."""
@@ -111,12 +113,14 @@ class BaseRunner(ABC):
         self.volume_setup()
         self.target_setup()
         self.tcpdump_setup()
-        self.attack_setup()
+        if not self.manual:
+            self.attack_setup()
 
     def cleanup_all(self) -> None:
         """Tear down target and attack containers."""
         self.target_cleanup()
-        self.attack_cleanup()
+        if self.attack is not None:
+            self.attack_cleanup()
 
     def exploit(self) -> None:
         """Execute the configured Metasploit exploit against the target."""

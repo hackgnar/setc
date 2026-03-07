@@ -21,7 +21,7 @@
         "type": "object",
         "title": "Exploit Settings",
         "description": "Configuration for the target environment and Metasploit exploit.",
-        "required": ["description", "exploit"],
+        "required": ["description"],
         "additionalProperties": true,
         "properties": {
           "description": {
@@ -32,7 +32,7 @@
           "exploit": {
             "type": "string",
             "title": "Metasploit Exploit Module",
-            "description": "Metasploit module path (e.g. multi/http/struts2_multi_eval_ognl)."
+            "description": "Metasploit module path (e.g. multi/http/struts2_multi_eval_ognl). Omit or leave empty for manual exploit mode."
           },
           "target_image": {
             "type": "string",

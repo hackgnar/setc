@@ -56,11 +56,15 @@ def validate_config(config: Any) -> list[str]:
         s = entry["settings"]
 
         # Required string fields
-        for field in ("description", "exploit"):
+        for field in ("description",):
             if field not in s:
                 errors.append(f"{prefix}: missing required setting '{field}'.")
             elif not isinstance(s[field], str):
                 errors.append(f"{prefix}: setting '{field}' must be a string.")
+
+        # exploit is optional — if present it must be a non-empty string
+        if "exploit" in s and not isinstance(s["exploit"], str):
+            errors.append(f"{prefix}: setting 'exploit' must be a string.")
 
         # Exactly one of target_image or yml_file
         has_image = "target_image" in s
@@ -336,6 +340,11 @@ def main() -> None:
                 exploit_check_count=int(system_config["settings"].get("exploit_check_count", 7))
                 ready_delay=int(system_config["settings"].get("ready_delay", 5))
                 ready_retries=int(system_config["settings"].get("ready_retries", 5))
+
+                # Detect manual mode: no exploit field or empty string
+                manual = not system_config["settings"].get("exploit")
+                msf_exploit = system_config["settings"].get("exploit", "")
+
                 setc = None
                 setc_type = None
                 if "yml_file" in system_config["settings"]:
@@ -343,7 +352,7 @@ def main() -> None:
                                                vuln_name=system_config["name"],
                                                target_name=system_config["settings"]["target_name"],
                                                target_yml=system_config["settings"]["yml_file"],
-                                               msf_exploit=system_config["settings"]["exploit"],
+                                               msf_exploit=msf_exploit,
                                                msf_options=msf_options,
                                                msf_image=args.msf,
                                                prefix=prefix)
@@ -352,7 +361,7 @@ def main() -> None:
                     setc = DockerMsfCli(client,
                                         name = system_config["name"],
                                         target_image=system_config["settings"]["target_image"],
-                                        msf_exploit=system_config["settings"]["exploit"],
+                                        msf_exploit=msf_exploit,
                                         msf_options=msf_options,
                                         delay=delay,
                                         msf_image=args.msf,
@@ -361,6 +370,9 @@ def main() -> None:
                 #Note: Trying the pattern match passing a different way to cut down on class arguments
                 if "exploit_success_pattern" in system_config["settings"]:
                     setc.exploit_success_pattern=system_config["settings"]["exploit_success_pattern"]
+
+                if manual:
+                    setc.manual = True
 
                 ########################################
                 ###          Pre UP Runners         ###
@@ -393,9 +405,16 @@ def main() -> None:
                             break
                         tries += 1
                 logger.info("Target %s is ready for exploit", system_config["name"])
-                setc.exploit_until_success(status_delay=exploit_check_delay,
-                                           status_checks=exploit_check_count,
-                                           tries=exploit_retries)
+
+                if manual:
+                    logger.info("Manual mode: target %s is up and tcpdump is capturing traffic", system_config["name"])
+                    logger.info("Exploit the target manually, then press Enter to continue")
+                    input("Press Enter when finished exploiting to continue...")
+                    logger.info("Resuming SETC pipeline for %s", system_config["name"])
+                else:
+                    setc.exploit_until_success(status_delay=exploit_check_delay,
+                                               status_checks=exploit_check_count,
+                                               tries=exploit_retries)
 
                 ########################################
                 ###          Pre Down Runners        ###
