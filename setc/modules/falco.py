@@ -160,8 +160,20 @@ class FalcoModule:
                 except json.JSONDecodeError:
                     continue
 
+            # Log distinct rule names for diagnostics
+            filtered_rules = {}
+            for e in filtered_events:
+                r = e.get("rule", "unknown")
+                filtered_rules[r] = filtered_rules.get(r, 0) + 1
+            all_rules = {}
+            for e in all_events:
+                r = e.get("rule", "unknown")
+                all_rules[r] = all_rules.get(r, 0) + 1
+
             logger.info("Falco: %d total events, %d matched target containers for %s",
                         len(all_events), len(filtered_events), vuln_name)
+            logger.debug("Falco rules fired (all containers): %s", dict(all_rules))
+            logger.debug("Falco rules fired (target only): %s", dict(filtered_rules))
 
             if not filtered_events:
                 return

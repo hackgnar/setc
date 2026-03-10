@@ -20,6 +20,15 @@ json_include_output_property: true
 json_include_output_fields_property: true
 json_include_tags_property: true
 
+append_output:
+  - suggested_output: true
+  - match:
+      source: syscall
+    extra_output: "container_id=%container.id container_name=%container.name"
+    extra_fields:
+      - container.id
+      - container.name
+
 file_output:
   enabled: true
   keep_alive: true

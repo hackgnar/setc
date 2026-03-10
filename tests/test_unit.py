@@ -35,6 +35,9 @@ from modules.falco_log_converter import (  # noqa: E402
     falco_cef_process, falco_udm_process,
     falco_cim_network, falco_ecs_network, falco_ocsf_network,
     falco_cim_file, falco_ecs_file, falco_ocsf_file,
+    falco_cim_alert, falco_ecs_alert, falco_ocsf_alert,
+    falco_cef_alert, falco_udm_alert,
+    _FALCO_PRIORITY_MAP, _extract_mitre_tags,
 )
 
 # ---------------------------------------------------------------------------
@@ -842,3 +845,129 @@ class TestFalcoSchemaConversions:
         assert result["file"]["name"] == "/etc/shadow"
         assert result["actor"]["process"]["name"] == "bash"
         assert result["actor"]["user"]["name"] == "root"
+
+
+# ===================================================================
+# 14. Falco alert schema conversions
+# ===================================================================
+
+SAMPLE_FALCO_ALERT: dict[str, Any] = {
+    "_rule": "Terminal shell in container",
+    "_priority": "Notice",
+    "_output": "A shell was spawned in a container (container=setc-target proc=bash)",
+    "_tags": ["maturity_stable", "container", "shell", "mitre_execution", "T1059.004"],
+    "container.id": "abc123",
+    "container.name": "setc-target",
+    "proc.name": "bash",
+    "proc.pid": 12345,
+    "proc.cmdline": "bash",
+    "user.name": "root",
+    "evt.type": "execve",
+    "time": 1700000000.0,
+}
+
+
+class TestFalcoAlertSchemas:
+    """Tests for Falco built-in detection rule → alert schema conversions."""
+
+    def test_falco_alert_to_cim(self):
+        result = process_apply_schema(SAMPLE_FALCO_ALERT, falco_cim_alert)
+        assert result["action"] == "detected"
+        assert result["severity"] == "medium"
+        assert result["signature"] == "Terminal shell in container"
+        assert result["description"] == SAMPLE_FALCO_ALERT["_output"]
+        assert result["process_name"] == "bash"
+        assert result["process_id"] == 12345
+        assert result["user"] == "root"
+        assert result["dest"] == "setc-target"
+
+    def test_falco_alert_to_ecs(self):
+        result = process_apply_schema(SAMPLE_FALCO_ALERT, falco_ecs_alert)
+        assert result["event.kind"] == "alert"
+        assert result["event.category"] == "intrusion_detection"
+        assert result["event.severity"] == 2
+        assert result["rule.name"] == "Terminal shell in container"
+        assert result["rule.description"] == SAMPLE_FALCO_ALERT["_output"]
+        assert result["threat.framework"] == "MITRE ATT&CK"
+        assert result["threat.tactic.name"] == "Execution"
+        assert result["threat.technique.id"] == ["T1059.004"]
+        assert result["process.name"] == "bash"
+        assert result["process.pid"] == 12345
+        assert result["container.name"] == "setc-target"
+        assert result["container.id"] == "abc123"
+        assert result["user.name"] == "root"
+
+    def test_falco_alert_to_ocsf(self):
+        result = process_apply_schema(SAMPLE_FALCO_ALERT, falco_ocsf_alert)
+        assert result["class_uid"] == "2004"
+        assert result["class_name"] == "Detection Finding"
+        assert result["category_uid"] == "2"
+        assert result["category_name"] == "Findings"
+        assert result["severity_id"] == "3"
+        assert result["finding_info"]["title"] == "Terminal shell in container"
+        assert result["finding_info"]["desc"] == SAMPLE_FALCO_ALERT["_output"]
+        assert result["attacks"] is not None
+        assert result["attacks"][0]["tactic"]["name"] == "Execution"
+        assert result["process"]["name"] == "bash"
+        assert result["process"]["pid"] == 12345
+        assert result["metadata"]["product"]["name"] == "Falco"
+
+    def test_falco_alert_to_cef(self):
+        extensions = process_apply_schema(SAMPLE_FALCO_ALERT, falco_cef_alert)
+        header = ("SETC", "Falco", "0.43.0", "FALCO-DETECT",
+                  "Falco Detection: Terminal shell in container", "5")
+        line = process_format_cef_line(header, extensions)
+        assert isinstance(line, str)
+        assert "CEF:0|SETC|Falco|0.43.0|FALCO-DETECT|" in line
+        assert "sproc=bash" in line
+        assert "spid=12345" in line
+        assert "suser=root" in line
+        assert "cs2=Terminal shell in container" in line
+        assert "msg=" in line
+
+    def test_falco_alert_to_udm(self):
+        result = process_apply_schema(SAMPLE_FALCO_ALERT, falco_udm_alert)
+        assert result["metadata"]["event_type"] == "GENERIC_EVENT"
+        assert result["metadata"]["vendor_name"] == "SETC"
+        assert result["metadata"]["product_name"] == "Falco"
+        assert result["security_result"]["alert_state"] == "ALERTING"
+        assert result["security_result"]["severity"] == "MEDIUM"
+        assert result["security_result"]["rule_name"] == "Terminal shell in container"
+        assert result["security_result"]["description"] == SAMPLE_FALCO_ALERT["_output"]
+        assert result["target"]["process"]["pid"] == 12345
+        assert result["principal"]["user"]["userid"] == "root"
+
+    def test_extract_mitre_tags(self):
+        tags = ["maturity_stable", "container", "mitre_execution", "T1059.004", "T1059"]
+        tactic, techniques = _extract_mitre_tags(tags)
+        assert tactic == "Execution"
+        assert techniques == ["T1059.004", "T1059"]
+
+    def test_extract_mitre_tags_none(self):
+        tactic, techniques = _extract_mitre_tags(None)
+        assert tactic is None
+        assert techniques == []
+
+    def test_extract_mitre_tags_no_mitre(self):
+        tactic, techniques = _extract_mitre_tags(["container", "shell"])
+        assert tactic is None
+        assert techniques == []
+
+    @pytest.mark.parametrize("priority,expected_cim,expected_ecs,expected_ocsf,expected_cef,expected_udm", [
+        ("Emergency",     "critical", 4, "5", "10", "CRITICAL"),
+        ("Alert",         "critical", 4, "5", "9",  "CRITICAL"),
+        ("Critical",      "critical", 4, "5", "9",  "CRITICAL"),
+        ("Error",         "high",     3, "4", "7",  "HIGH"),
+        ("Warning",       "high",     3, "4", "7",  "HIGH"),
+        ("Notice",        "medium",   2, "3", "5",  "MEDIUM"),
+        ("Informational", "low",      1, "2", "3",  "LOW"),
+        ("Debug",         "low",      1, "1", "1",  "LOW"),
+    ])
+    def test_priority_mapping(self, priority, expected_cim, expected_ecs,
+                              expected_ocsf, expected_cef, expected_udm):
+        mapping = _FALCO_PRIORITY_MAP[priority]
+        assert mapping["cim"] == expected_cim
+        assert mapping["ecs"] == expected_ecs
+        assert mapping["ocsf"] == expected_ocsf
+        assert mapping["cef"] == expected_cef
+        assert mapping["udm"] == expected_udm
