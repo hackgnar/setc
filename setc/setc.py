@@ -468,18 +468,20 @@ def main() -> None:
                             target = setc._get_target_container()
                             tp.pre_down(target, system_config["name"])
 
-                    if falco and falco.is_ready():
-                        target_containers = [setc.target_name]
-                        if setc_type == "compose" and hasattr(setc, 'wdocker'):
-                            target_containers = [c.name for c in setc.wdocker.compose.ps()]
-                        write_cont = zeek.zeek if zeek else falco.falco
-                        falco.extract_events(system_config["name"], target_containers, write_cont)
+                # Falco/Zeek extraction runs outside the spinner so log
+                # messages don't collide with the status line.
+                if falco and falco.is_ready():
+                    target_containers = [setc.target_name]
+                    if setc_type == "compose" and hasattr(setc, 'wdocker'):
+                        target_containers = [c.name for c in setc.wdocker.compose.ps()]
+                    write_cont = zeek.zeek if zeek else falco.falco
+                    falco.extract_events(system_config["name"], target_containers, write_cont)
 
-                    if not args.no_zeek:
-                        zeek.pcap_parse(system_config["name"])
-                        zeek.to_logstandard(system_config["name"])
+                if not args.no_zeek:
+                    zeek.pcap_parse(system_config["name"])
+                    zeek.to_logstandard(system_config["name"])
 
-                    setc.cleanup_all()
+                setc.cleanup_all()
                 logger.info("Cleanup complete for %s", system_config["name"])
 
                 ########################################

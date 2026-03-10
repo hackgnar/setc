@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import re
 import tarfile
 import time
 from typing import Any
@@ -13,6 +14,33 @@ import docker.models.containers
 from modules.docker_process_logger import apply_schema, format_cef_line
 
 logger = logging.getLogger(__name__)
+
+# ===================================================================
+# Priority mapping + MITRE tag extraction (for alert schemas)
+# ===================================================================
+
+_FALCO_PRIORITY_MAP = {
+    "Emergency":     {"cim": "critical", "ecs": 4, "ocsf": "5", "cef": "10", "udm": "CRITICAL"},
+    "Alert":         {"cim": "critical", "ecs": 4, "ocsf": "5", "cef": "9",  "udm": "CRITICAL"},
+    "Critical":      {"cim": "critical", "ecs": 4, "ocsf": "5", "cef": "9",  "udm": "CRITICAL"},
+    "Error":         {"cim": "high",     "ecs": 3, "ocsf": "4", "cef": "7",  "udm": "HIGH"},
+    "Warning":       {"cim": "high",     "ecs": 3, "ocsf": "4", "cef": "7",  "udm": "HIGH"},
+    "Notice":        {"cim": "medium",   "ecs": 2, "ocsf": "3", "cef": "5",  "udm": "MEDIUM"},
+    "Informational": {"cim": "low",      "ecs": 1, "ocsf": "2", "cef": "3",  "udm": "LOW"},
+    "Debug":         {"cim": "low",      "ecs": 1, "ocsf": "1", "cef": "1",  "udm": "LOW"},
+}
+
+
+def _extract_mitre_tags(tags):
+    """Return (tactic_name, [technique_ids]) from Falco tags list."""
+    tactic = None
+    technique_ids = []
+    for tag in (tags or []):
+        if tag.startswith("mitre_"):
+            tactic = tag[len("mitre_"):].replace("_", " ").title()
+        elif re.match(r"^T\d{4}", tag):
+            technique_ids.append(tag)
+    return tactic, technique_ids
 
 # ===================================================================
 # Process event schemas
@@ -332,6 +360,116 @@ falco_udm_file = {
 }
 
 # ===================================================================
+# Alert schemas (for built-in Falco detection rules)
+# ===================================================================
+
+falco_cim_alert = {
+    "timestamp": lambda x: x.get("time", time.time()),
+    "action": lambda x: "detected",
+    "severity": lambda x: _FALCO_PRIORITY_MAP.get(x.get("_priority", "Notice"), {}).get("cim", "medium"),
+    "signature": lambda x: x.get("_rule"),
+    "description": lambda x: x.get("_output"),
+    "process_name": lambda x: x.get("proc.name"),
+    "process_id": lambda x: x.get("proc.pid"),
+    "user": lambda x: x.get("user.name"),
+    "dest": lambda x: x.get("container.name"),
+}
+
+falco_ecs_alert = {
+    "@timestamp": lambda x: x.get("time", time.time()),
+    "ecs.version": lambda x: "8.17",
+    "event.kind": lambda x: "alert",
+    "event.category": lambda x: "intrusion_detection",
+    "event.type": lambda x: "info",
+    "event.severity": lambda x: _FALCO_PRIORITY_MAP.get(x.get("_priority", "Notice"), {}).get("ecs", 2),
+    "event.action": lambda x: x.get("evt.type"),
+    "rule.name": lambda x: x.get("_rule"),
+    "rule.description": lambda x: x.get("_output"),
+    "threat.framework": lambda x: "MITRE ATT&CK" if _extract_mitre_tags(x.get("_tags"))[0] else None,
+    "threat.tactic.name": lambda x: _extract_mitre_tags(x.get("_tags"))[0],
+    "threat.technique.id": lambda x: _extract_mitre_tags(x.get("_tags"))[1] or None,
+    "process.name": lambda x: x.get("proc.name"),
+    "process.pid": lambda x: x.get("proc.pid"),
+    "process.command_line": lambda x: x.get("proc.cmdline"),
+    "container.name": lambda x: x.get("container.name"),
+    "container.id": lambda x: x.get("container.id"),
+    "user.name": lambda x: x.get("user.name"),
+}
+
+falco_ocsf_alert = {
+    "time": lambda x: x.get("time", time.time()),
+    "activity_name": lambda x: "Create",
+    "activity_id": lambda x: "1",
+    "category_uid": lambda x: "2",
+    "category_name": lambda x: "Findings",
+    "class_uid": lambda x: "2004",
+    "class_name": lambda x: "Detection Finding",
+    "severity_id": lambda x: _FALCO_PRIORITY_MAP.get(x.get("_priority", "Notice"), {}).get("ocsf", "3"),
+    "finding_info": {
+        "title": lambda x: x.get("_rule"),
+        "desc": lambda x: x.get("_output"),
+    },
+    "attacks": lambda x: [{
+        "tactic": {"name": _extract_mitre_tags(x.get("_tags"))[0]},
+        "technique": {"uid": tid for tid in _extract_mitre_tags(x.get("_tags"))[1]},
+        "version": "14.1",
+    }] if _extract_mitre_tags(x.get("_tags"))[0] else None,
+    "process": {
+        "name": lambda x: x.get("proc.name"),
+        "pid": lambda x: x.get("proc.pid"),
+        "cmd_line": lambda x: x.get("proc.cmdline"),
+    },
+    "metadata": {
+        "version": lambda x: "1.4.0",
+        "product": {
+            "name": lambda x: "Falco",
+            "vendor_name": lambda x: "SETC",
+        },
+    },
+}
+
+falco_cef_alert = {
+    "rt": lambda x: x.get("time", time.time()),
+    "msg": lambda x: x.get("_output"),
+    "sproc": lambda x: x.get("proc.name"),
+    "spid": lambda x: x.get("proc.pid"),
+    "suser": lambda x: x.get("user.name"),
+    "cs2Label": lambda x: "ruleName",
+    "cs2": lambda x: x.get("_rule"),
+    "cs3Label": lambda x: "tags",
+    "cs3": lambda x: ",".join(x.get("_tags", [])),
+    "cs4Label": lambda x: "containerName",
+    "cs4": lambda x: x.get("container.name"),
+}
+
+falco_udm_alert = {
+    "metadata": {
+        "event_timestamp": lambda x: x.get("time", time.time()),
+        "event_type": lambda x: "GENERIC_EVENT",
+        "vendor_name": lambda x: "SETC",
+        "product_name": lambda x: "Falco",
+        "product_version": lambda x: "0.43.0",
+    },
+    "security_result": {
+        "alert_state": lambda x: "ALERTING",
+        "severity": lambda x: _FALCO_PRIORITY_MAP.get(x.get("_priority", "Notice"), {}).get("udm", "MEDIUM"),
+        "rule_name": lambda x: x.get("_rule"),
+        "description": lambda x: x.get("_output"),
+    },
+    "target": {
+        "process": {
+            "pid": lambda x: x.get("proc.pid"),
+            "commandLine": lambda x: x.get("proc.cmdline"),
+        },
+    },
+    "principal": {
+        "user": {
+            "userid": lambda x: x.get("user.name"),
+        },
+    },
+}
+
+# ===================================================================
 # Rule → schema mapping
 # ===================================================================
 
@@ -382,34 +520,70 @@ def convert_falco_events(events: list[dict[str, Any]],
     cef_all: list[str] = []
     udm_all: list[dict] = []
 
+    cim_alerts: list[dict] = []
+    ecs_alerts: list[dict] = []
+    ocsf_alerts: list[dict] = []
+    cef_alerts: list[str] = []
+    udm_alerts: list[dict] = []
+
     for event in events:
         rule = event.get("rule", "")
-        schemas = _RULE_SCHEMAS.get(rule)
-        if not schemas:
-            continue
-
         fields = event.get("output_fields", {})
         fields["time"] = event.get("time", time.time())
+        schemas = _RULE_SCHEMAS.get(rule)
 
-        cim_all.append(apply_schema(fields, schemas["cim"]))
-        ecs_all.append(apply_schema(fields, schemas["ecs"]))
-        ocsf_all.append(apply_schema(fields, schemas["ocsf"]))
-        udm_all.append(apply_schema(fields, schemas["udm"]))
+        if schemas:
+            # SETC telemetry rule → observational event
+            cim_all.append(apply_schema(fields, schemas["cim"]))
+            ecs_all.append(apply_schema(fields, schemas["ecs"]))
+            ocsf_all.append(apply_schema(fields, schemas["ocsf"]))
+            udm_all.append(apply_schema(fields, schemas["udm"]))
 
-        cef_extensions = apply_schema(fields, schemas["cef"])
-        cef_all.append(format_cef_line(schemas["cef_header"], cef_extensions))
+            cef_extensions = apply_schema(fields, schemas["cef"])
+            cef_all.append(format_cef_line(schemas["cef_header"], cef_extensions))
+        else:
+            # Built-in Falco detection rule → alert event
+            fields["_rule"] = rule
+            fields["_priority"] = event.get("priority", "Notice")
+            fields["_output"] = event.get("output", "")
+            fields["_tags"] = event.get("tags", [])
 
-    # Write each format to the volume
+            cim_alerts.append(apply_schema(fields, falco_cim_alert))
+            ecs_alerts.append(apply_schema(fields, falco_ecs_alert))
+            ocsf_alerts.append(apply_schema(fields, falco_ocsf_alert))
+            udm_alerts.append(apply_schema(fields, falco_udm_alert))
+
+            priority = event.get("priority", "Notice")
+            cef_sev = _FALCO_PRIORITY_MAP.get(priority, {}).get("cef", "5")
+            header = ("SETC", "Falco", "0.43.0", "FALCO-DETECT",
+                      f"Falco Detection: {rule}", str(cef_sev))
+            cef_alerts.append(format_cef_line(header, apply_schema(fields, falco_cef_alert)))
+
+    telemetry_count = len(cim_all)
+    alert_count = len(cim_alerts)
+    logger.info("Falco conversion: %d telemetry events, %d alert events for %s",
+                telemetry_count, alert_count, vuln_name)
+
+    # Write telemetry (SETC rules)
     for log_type, data in [("cim", cim_all), ("ecs", ecs_all),
                            ("ocsf", ocsf_all), ("udm", udm_all),
                            ("cef", cef_all)]:
         if not data:
             continue
-        _write_to_volume(write_container, log_type, data, vuln_name)
+        _write_to_volume(write_container, log_type, data, vuln_name, suffix="falco")
+
+    # Write alerts (built-in Falco detection rules)
+    for log_type, data in [("cim", cim_alerts), ("ecs", ecs_alerts),
+                           ("ocsf", ocsf_alerts), ("udm", udm_alerts),
+                           ("cef", cef_alerts)]:
+        if not data:
+            continue
+        _write_to_volume(write_container, log_type, data, vuln_name, suffix="falco_alert")
 
 
 def _write_to_volume(write_container: docker.models.containers.Container,
-                     log_type: str, data: list, directory: str) -> None:
+                     log_type: str, data: list, directory: str,
+                     suffix: str = "falco") -> None:
     """Write converted logs to the shared Docker volume as a tar archive."""
     tar_fileobj = io.BytesIO()
     with tarfile.open(fileobj=tar_fileobj, mode="w|") as tar:
@@ -417,7 +591,7 @@ def _write_to_volume(write_container: docker.models.containers.Container,
             my_content = ("\n".join(data) + "\n").encode('utf-8')
         else:
             my_content = json.dumps(data).encode('utf-8')
-        tf = tarfile.TarInfo("%s_falco_%s.log" % (log_type, str(time.time())))
+        tf = tarfile.TarInfo("%s_%s_%s.log" % (log_type, suffix, str(time.time())))
         tf.size = len(my_content)
         tar.addfile(tf, io.BytesIO(my_content))
     tar_fileobj.flush()
