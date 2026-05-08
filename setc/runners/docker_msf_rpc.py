@@ -91,6 +91,12 @@ class DockerMsfRpc(BaseRunner):
         still need to land in _runopts so that execute() forwards them in the
         RPC call.
         """
+        # TARGET is exposed as a property on the module; module.execute() reads
+        # self.target directly rather than the options dict, so writing through
+        # __setitem__ would silently leave the active target unchanged.
+        if key.upper() == "TARGET":
+            module.target = int(value)
+            return
         if key in module.options:
             module[key] = value
         else:

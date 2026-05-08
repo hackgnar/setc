@@ -285,6 +285,28 @@ cd docker_images/httpd/CVE-2021-42013 && docker build -t cve-2021-42013 .
 
 For Docker Compose configs, clone [vulhub](https://github.com/vulhub/vulhub) and set `VULN_PATH` to point to it.
 
+### Running on arm64 hosts
+
+SETC was developed and validated on amd64. The pinned Metasploit image and almost all vulhub / Metasploitable target images are amd64-only — running on aarch64 hosts (Apple Silicon, AWS Graviton, NVIDIA Grace, Ampere, etc.) requires extra setup and comes with caveats.
+
+1. **Register amd64 emulation:**
+   ```bash
+   sudo apt install qemu-user-static binfmt-support
+   ```
+   This registers `qemu-x86_64` under `binfmt_misc` so Docker can transparently run amd64 images. Persists across reboots via `systemd-binfmt`.
+
+2. **Override the pinned Metasploit image.** `metasploitframework/metasploit-framework:6.2.33` is amd64-only and Ruby's native gems segfault under QEMU on ARM. Use an upstream multi-arch tag (which runs natively):
+   ```bash
+   docker pull metasploitframework/metasploit-framework:latest
+   python3 setc/setc.py <config> --msf metasploitframework/metasploit-framework:latest
+   ```
+
+3. **Target compatibility under emulation is not uniform — and depends on which emulator you're using.**
+   - **Linux arm64 (`qemu-user-static`):** Most non-JVM targets (PHP, bash, native httpd, Redis, etc.) run fine. **JVM-based targets — Struts, Tomcat, ActiveMQ, Solr — exercise QEMU's translation cache aggressively and tend to SIGSEGV during JVM startup**, especially on strict-memory-order ARM CPUs (e.g. NVIDIA Grace, Graviton). Symptom: `QEMU internal SIGSEGV {code=MAPERR}` in the target container's logs and the exploit never reaching a successful state. There is no QEMU tuning that reliably fixes this; the practical workarounds are (a) skip JVM CVEs on arm64 Linux hosts, or (b) run SETC inside an amd64 VM / on a remote amd64 machine for those entries.
+   - **macOS (Apple Silicon):** Docker Desktop defaults to Apple's **Rosetta 2** translator for amd64 emulation rather than QEMU (Settings → General → "Use Rosetta for x86/amd64 emulation"). Rosetta 2 is JIT-aware and handles self-modifying code well, so JVM-based vulhub targets generally work without the QEMU SIGSEGV issue. **There is no Rosetta equivalent on Linux** — if your team validates CVEs on Mac and runs SETC on Linux ARM, expect a coverage gap on JVM targets.
+
+4. **Validity caveat.** Even when emulation runs cleanly, exploits whose primitives are arch-sensitive (memory-corruption gadgets, calling-convention details) may behave differently than on a native amd64 host. For application-layer RCE (OGNL, command injection, deserialization) the captured telemetry should be equivalent; for low-level memory exploits, treat arm64-emulated runs as suspect until cross-validated.
+
 ## Development
 
 ```bash
